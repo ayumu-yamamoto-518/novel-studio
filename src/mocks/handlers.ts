@@ -1,5 +1,3 @@
-import { http, HttpResponse } from 'msw'
+import type { RequestHandler } from 'msw'
 
-export const handlers = [
-  http.get('/api/health', () => HttpResponse.json({ status: 'ok' })),
-]
+export const handlers: RequestHandler[] = []
