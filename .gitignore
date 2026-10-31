@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+coverage/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# tests
+playwright-report/
+test-results/
+
+# deploy
+.vercel/
+
+# editor / OS
+.DS_Store
+.idea/
+*.log
+
+# Claude Code (local settings) / git worktrees
+.claude/settings.local.json
+.worktrees/
