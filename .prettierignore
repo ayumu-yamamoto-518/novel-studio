@@ -2,3 +2,4 @@ dist
 coverage
 public/mockServiceWorker.js
 package-lock.json
+CLAUDE.md
