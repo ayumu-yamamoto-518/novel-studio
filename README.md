@@ -51,6 +51,10 @@ docs/ai-log.md      AIログ
 
 `src/features/sample/` は各ライブラリの配線確認用のサンプルです。段階1の最初に削除します。
 
+## 既知の課題
+
+- MSW の起動(Service Worker の登録)に失敗すると、画面が何も表示されません。Service Worker が使えない環境などで起きます。公開に向けた段階3で直します。
+
 ## デモ
 
 準備中
