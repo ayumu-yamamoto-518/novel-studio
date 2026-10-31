@@ -24,14 +24,14 @@ esac
 
 cd "$project" || exit 0
 
-if ! output=$(npx prettier --write --ignore-unknown "$file" 2>&1); then
+if ! output=$(npx --no-install prettier --write --ignore-unknown "$file" 2>&1); then
   echo "Prettier failed for $file:" >&2
   echo "$output" >&2
   exit 2
 fi
 
 if [ "$lint" = 1 ]; then
-  if ! output=$(npx eslint --max-warnings 0 --no-warn-ignored "$file" 2>&1); then
+  if ! output=$(npx --no-install eslint --max-warnings 0 --no-warn-ignored "$file" 2>&1); then
     echo "ESLint errors in $file:" >&2
     echo "$output" >&2
     exit 2

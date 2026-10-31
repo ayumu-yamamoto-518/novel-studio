@@ -26,6 +26,7 @@
       "Bash(git branch --show-current)",
       "Bash(git branch --list *)"
     ],
-    "deny": ["Read(./.env)", "Read(./.env.*)"]
+    "deny": ["Read(./.env)", "Read(./.env.*)"],
+    "ask": ["Bash(git diff --no-index *)", "Bash(git * --output*)"]
   }
 }
