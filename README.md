@@ -4,9 +4,14 @@
 
 > 現在は「段階0: 開発基盤づくり」まで完了しており、機能はまだありません。
 
-## 進め方
+## 進め方(ハーネスとループ)
 
-機能より先に、AIの出力を自動で検証する仕組み(strict な TypeScript、lint、テスト、CI、編集時の hook)を整えました。以降は「テストを先に書く → 実装 → `npm run check` → 人がレビュー」を、小さなPR単位で繰り返します。AIの間違いや人が直した点は [docs/ai-log.md](docs/ai-log.md) に実例だけを記録します。開発ルールは [CLAUDE.md](CLAUDE.md) にあります。
+実装の大部分は Claude Code(Superpowers プラグイン)に任せ、方針の判断(選択肢の決定)、コマンドの許可、ブラウザでの確認、PRのレビューとマージは人が行います。機能より先に、AIの出力を自動で検証する仕組み(ハーネス)を整えました。
+
+- **ハーネス**: [CLAUDE.md](CLAUDE.md)(開発ルール)、`npm run check`(lint・型・テスト・ビルド)、編集のたびに整形と lint を行い違反を差し戻す hook、権限設定、PRごとの CI
+- **ループ**: 計画(writing-plans)→ テスト先行(test-driven-development)→ 実装(executing-plans)→ `npm run check` → 実装とは別のAIが、読み取り専用でブランチ全体をレビュー → PR と CI → 人がレビューしてマージ
+
+AIの間違いや人が直した点は、[docs/ai-log.md](docs/ai-log.md) に実例だけを記録します。
 
 ## 技術スタック
 
@@ -45,6 +50,11 @@ docs/ai-log.md      AIログ
 ```
 
 `src/features/sample/` は各ライブラリの配線確認用のサンプルです。段階1の最初に削除します。
+
+## 既知の課題
+
+- MSW の起動(Service Worker の登録)に失敗すると、画面が何も表示されません。Service Worker が使えない環境などで起きます。公開に向けた段階3で直します。
+- 段階1で、画面の切り替えを jotai の状態で行う予定です。その場合、ブラウザの戻るボタンと URL 共有は効きません。段階3で react-router の導入を検討します。
 
 ## デモ
 
