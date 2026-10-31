@@ -3,7 +3,9 @@ node_modules/
 
 # build output
 dist/
+dist-ssr/
 coverage/
+.vitest/
 
 # env / secrets
 .env
@@ -21,6 +23,10 @@ test-results/
 .DS_Store
 .idea/
 *.log
+npm-debug.log*
+*.local
+.vscode/*
+!.vscode/extensions.json
 
 # Claude Code (local settings) / git worktrees
 .claude/settings.local.json
