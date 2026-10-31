@@ -10,4 +10,12 @@ describe('App', () => {
       screen.getByRole('heading', { name: 'novel-studio' }),
     ).toBeInTheDocument()
   })
+
+  it('shadcn/ui のボタンを表示する', () => {
+    render(<App />)
+
+    expect(
+      screen.getByRole('button', { name: 'shadcn/ui' }),
+    ).toBeInTheDocument()
+  })
 })
