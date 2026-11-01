@@ -1,10 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { deleteChapter, fetchChapters } from './api'
+import { createChapter, deleteChapter, fetchChapters } from './api'
 
 export function useChapters(workId: string) {
   return useQuery({
     queryKey: ['chapters', workId],
     queryFn: () => fetchChapters(workId),
+  })
+}
+
+export function useCreateChapter(workId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (title: string) => createChapter(workId, title),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['chapters', workId] }),
   })
 }
 
