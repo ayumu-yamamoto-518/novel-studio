@@ -1,10 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createChapter, deleteChapter, fetchChapters } from './api'
+import {
+  createChapter,
+  deleteChapter,
+  fetchChapter,
+  fetchChapters,
+} from './api'
 
 export function useChapters(workId: string) {
   return useQuery({
     queryKey: ['chapters', workId],
     queryFn: () => fetchChapters(workId),
+  })
+}
+
+// 章が無い(404)ときは、data が null になる
+export function useChapter(id: string) {
+  return useQuery({
+    queryKey: ['chapter', id],
+    queryFn: () => fetchChapter(id),
   })
 }
 
