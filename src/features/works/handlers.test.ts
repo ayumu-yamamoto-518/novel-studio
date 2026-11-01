@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { Chapter } from '@/features/chapters/types'
 import { readDb } from '@/mocks/db'
 import { seedDb } from '@/test/db'
 import type { Work } from './types'
@@ -263,6 +264,79 @@ describe('DELETE /api/works/:id', () => {
     const res = await fetch('/api/works/w1', { method: 'DELETE' })
 
     expect(res.status).toBe(404)
+  })
+})
+
+describe('DELETE /api/works/:id と章のカスケード', () => {
+  function makeChapter(id: string, workId: string): Chapter {
+    return {
+      id,
+      workId,
+      title: `章${id}`,
+      body: '',
+      createdAt: '2026-11-01T00:00:00.000Z',
+      updatedAt: '2026-11-01T00:00:00.000Z',
+    }
+  }
+
+  it('作品を消すと、その作品の章もすべて消える', async () => {
+    seedDb({
+      works: [makeWork('w1', '消す作品')],
+      chapters: [makeChapter('c1', 'w1'), makeChapter('c2', 'w1')],
+    })
+
+    const res = await fetch('/api/works/w1', { method: 'DELETE' })
+
+    expect(res.status).toBe(204)
+    expect(readDb().works).toEqual([])
+    expect(readDb().chapters).toEqual([])
+  })
+
+  it('他の作品の章は残る(消す作品の章の前後にあっても)', async () => {
+    const keep1 = makeChapter('c1', 'w2')
+    const keep2 = makeChapter('c4', 'w2')
+    const keepWork = makeWork('w2', '残る作品')
+    seedDb({
+      works: [makeWork('w1', '消す作品'), keepWork],
+      chapters: [
+        keep1,
+        makeChapter('c2', 'w1'),
+        makeChapter('c3', 'w1'),
+        keep2,
+      ],
+    })
+
+    await fetch('/api/works/w1', { method: 'DELETE' })
+
+    expect(readDb().works).toEqual([keepWork])
+    expect(readDb().chapters).toEqual([keep1, keep2])
+    expect(await (await fetch('/api/works/w2/chapters')).json()).toEqual([
+      keep1,
+      keep2,
+    ])
+  })
+
+  it('章のない作品の削除は、従来どおり、他の作品の章に触れない', async () => {
+    const other = makeChapter('c1', 'w2')
+    seedDb({
+      works: [makeWork('w1', '章のない作品'), makeWork('w2', '残る作品')],
+      chapters: [other],
+    })
+
+    const res = await fetch('/api/works/w1', { method: 'DELETE' })
+
+    expect(res.status).toBe(204)
+    expect(readDb().chapters).toEqual([other])
+  })
+
+  it('存在しない作品の削除(404)では、章を消さない', async () => {
+    const chapter = makeChapter('c1', 'w1')
+    seedDb({ works: [makeWork('w1', '残る作品')], chapters: [chapter] })
+
+    const res = await fetch('/api/works/unknown', { method: 'DELETE' })
+
+    expect(res.status).toBe(404)
+    expect(readDb().chapters).toEqual([chapter])
   })
 })
 

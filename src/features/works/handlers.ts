@@ -124,7 +124,11 @@ export const worksHandlers = [
       )
     }
 
-    writeDb({ ...db, works: db.works.filter((work) => work.id !== params.id) })
+    // 作品と、その作品の章を同じ書き込みで消す(他の作品の章は残す)
+    writeDb({
+      works: db.works.filter((work) => work.id !== params.id),
+      chapters: db.chapters.filter((chapter) => chapter.workId !== params.id),
+    })
     return new HttpResponse(null, { status: 204 })
   }),
 ]
