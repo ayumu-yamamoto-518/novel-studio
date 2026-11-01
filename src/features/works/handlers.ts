@@ -67,6 +67,43 @@ export const worksHandlers = [
     return HttpResponse.json(work, { status: 201 })
   }),
 
+  // 受け付けるのは status の変更だけ(タイトルの変更は、必要になった時点で足す)
+  http.patch('/api/works/:id', async ({ params, request }) => {
+    const body = await readJson(request)
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      !('status' in body) ||
+      !isWorkStatus(body.status)
+    ) {
+      return HttpResponse.json(
+        { message: 'リクエストの形式が正しくありません' },
+        { status: 400 },
+      )
+    }
+
+    // 読み込みから書き込みの間に await を挟まない
+    const db = readDb()
+    const current = db.works.find((work) => work.id === params.id)
+    if (!current) {
+      return HttpResponse.json(
+        { message: '作品が見つかりません' },
+        { status: 404 },
+      )
+    }
+
+    const updated: Work = {
+      ...current,
+      status: body.status,
+      updatedAt: new Date().toISOString(),
+    }
+    writeDb({
+      ...db,
+      works: db.works.map((work) => (work.id === updated.id ? updated : work)),
+    })
+    return HttpResponse.json(updated)
+  }),
+
   http.delete('/api/works/:id', ({ params }) => {
     const db = readDb()
     if (!db.works.some((work) => work.id === params.id)) {
