@@ -50,7 +50,9 @@ export function WorkList({
             <Button
               variant="link"
               size="sm"
-              className="h-auto min-w-0 justify-start px-0 text-left whitespace-normal break-all"
+              // Button の基底クラスの shrink-0 を shrink で上書きする。残ると、長いタイトルが
+              // 折り返されず、右側のボタンを押し出す
+              className="h-auto min-w-0 shrink justify-start px-0 text-left whitespace-normal break-all"
               onClick={() => onOpen(work.id)}
             >
               {work.title}

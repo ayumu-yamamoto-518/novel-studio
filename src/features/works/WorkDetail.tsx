@@ -42,7 +42,7 @@ export function WorkDetail({
       <Button variant="ghost" size="sm" onClick={onBack}>
         作品一覧に戻る
       </Button>
-      <h2 className="text-xl font-bold">{work.title}</h2>
+      <h2 className="text-xl font-bold break-all">{work.title}</h2>
       <ChapterForm workId={workId} />
       <ChapterList workId={workId} />
     </div>
