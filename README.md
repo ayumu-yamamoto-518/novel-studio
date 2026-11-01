@@ -17,7 +17,7 @@
 ### 未実装・今後の予定
 
 - 執筆時間の進捗、期間検索、テキスト出力(当初の構想にあり、まだ作っていません)
-- 任意機能: 削除の確認ダイアログ(計画上の PR8)、作品のタイトル変更(PR9)、章の名前変更(PR10)。現状、削除は確認なしで即時に行われます
+- 任意機能: 削除の確認ダイアログ、作品のタイトル変更、章の名前変更。現状、削除は確認なしで即時に行われます
 
 ## どう作ったか
 
@@ -32,18 +32,18 @@ AIが書いたものを、人の目だけに頼らず検証するための土台
 - [CLAUDE.md](CLAUDE.md): 開発ルール(テスト先行、`any` / `@ts-ignore` / `eslint-disable` の禁止、YAGNI、main に直接コミットしない、完了の定義など)
 - `npm run check`: lint・型検査・テスト・ビルドをまとめて実行。通るまで「完了」としない
 - フック([.claude/hooks/format-lint.sh](.claude/hooks/format-lint.sh)): AI がファイルを編集・作成(Edit / Write)するたびに、ts・tsx・js・jsx・json・css・md・yml・html を Prettier で整形し、ts・tsx・js・jsx は ESLint も実行する。違反があれば AI に差し戻す
-- 権限([.claude/settings.json](.claude/settings.json)): 確認なしで実行してよいコマンドを、`npm run` のスクリプトと、読み取り系の git コマンド(status・diff・log・show・branch)に絞る。AI の `.env` の読み取りと、`git diff --no-index`・`--output` の指定は拒否する(Bash 経由の読み取りまでは止められない。限界は ai-log に記録)
+- 権限([.claude/settings.json](.claude/settings.json)): 確認なしで実行してよいコマンドを、`npm run` のスクリプトと、読み取り系の git コマンド(status・diff・log・show、branch は現在のブランチ名と一覧のみ)に絞る。AI の `.env` の読み取り、git の `--output` 指定(全 git コマンド)、`git diff --no-index` は拒否する(`grep -r` や、スクリプトがファイルを直接開く場合は止められない。限界は ai-log に記録)
 - CI([.github/workflows/ci.yml](.github/workflows/ci.yml)): PR ごとと main への push で `npm run check` を実行する
 - Superpowers プラグイン(6.4.2)は有効化したが、開発の手順は CLAUDE.md と Plan モードで運用した
 
 ### ループ
 
-1つの PR を、次の順で進めています。
+CLAUDE.md の規則ではなく、運用の手順です。1つの PR を、次の順で進めています。
 
 1. 計画: Plan モードで、読み取り専用でコードを調べ、計画を出させる。人が確認・承認してから着手する
 2. テスト先行: 先にテストを書き、失敗(赤)を確かめる
 3. 実装: 計画どおりに、1コミット=1つの振る舞いで進める
-4. `npm run check`
+4. `npm run check`(ミューテーションの前は typecheck、最後にもう一度 check)
 5. ミューテーション: 実装をわざと壊し、テストが赤になることを確かめる
 6. 別のAIが、読み取り専用でブランチ全体をレビューする
 7. 人が画面で確認する
@@ -52,27 +52,27 @@ AIが書いたものを、人の目だけに頼らず検証するための土台
 
 ### AIの間違いの記録
 
-AIの出力が間違っていた場合や、人が直した場合は、実際に起きたことだけを [docs/ai-log.md](docs/ai-log.md) に記録しています(21件)。例:
+運用の記録は docs/ai-log.md と各 PR の説明に残っています。AIの出力が間違っていた場合や、人が直した場合は、実際に起きたことだけを [docs/ai-log.md](docs/ai-log.md) に記録しています(21件)。例:
 
 - **二重送信のテストが、守りたいガードを外しても通る偽の緑だった**: 緑を信用せず実装を壊して確かめたことで気づき、送信回数を直接数えるテストに直しました。ミューテーションが役に立った例です。
 - **基本設定の ESLint では、`eslint-disable` コメントで `any` を隠せた**: 禁止ルールを入れる前に、実際に抜け道を試して見つけ、`noInlineConfig` で塞ぎました。ハーネスの穴を、先に試して塞いだ例です。
-- **git の許可ルールが、任意ファイルの書き込み・読み取りを確認なしで通した**: 「読み取り専用」と名前で判断した許可が、別コンテキストのレビュアーの指摘で間違いと分かりました。オプションの組み合わせを実際に試し、確認付きにしたあと、最終的に拒否に直しました。
+- **git の許可ルールが、任意ファイルの書き込み・読み取りを確認なしで通した**: 「読み取り専用」と名前で判断して入れた許可を、別コンテキストのレビュアーが、実際にコマンドを実行して、間違いと確かめました。確認付きにしたあと、最終的に拒否に直しました。
 
 ## 計画の PR と GitHub の PR
 
-ai-log や PR のタイトルでは、段階1の PR を計画上の番号(PR1〜PR7)で呼んでいます。GitHub の PR 番号とは次のように対応します。
+段階1の PR は、計画上の番号(PR1〜PR7)で呼ぶことがあります(ai-log・PR のタイトル・コミットメッセージで、部分的に使っています)。GitHub の PR 番号とは次のように対応します。
 
-| GitHub | ai-log の呼び名 | ブランチ                   | 内容                                                     |
-| ------ | --------------- | -------------------------- | -------------------------------------------------------- |
-| #1     | -               | `phase0/foundation`        | 段階0: 開発基盤づくり(strict TS・lint・テスト・CI・hook) |
-| #2     | -               | `phase0/wrapup`            | 段階0の仕上げ(README、ai-log、権限設定の修正など)        |
-| #3     | PR1             | `phase1/domain-types`      | 作品と章の型を追加し、サンプルを削除                     |
-| #4     | PR2             | `phase1/works-list-create` | 作品の一覧表示と新規作成                                 |
-| #5     | PR3             | `phase1/work-delete`       | 作品の削除                                               |
-| #6     | PR4             | `phase1/work-status-tabs`  | 作品のステータス変更と、「執筆中 / 完了」のタブ          |
-| #7     | PR5             | `phase1/chapters-api`      | 章の API と、作品の削除時に章も消す処理                  |
-| #8     | PR6             | `phase1/chapters-ui`       | 作品を開いての、章の一覧・追加・削除                     |
-| #9     | PR7             | `phase1/chapter-editor`    | 章の本文の編集・保存と文字数の表示                       |
+| GitHub | 計画上の番号 | ブランチ                   | 内容                                                     |
+| ------ | ------------ | -------------------------- | -------------------------------------------------------- |
+| #1     | -            | `phase0/foundation`        | 段階0: 開発基盤づくり(strict TS・lint・テスト・CI・hook) |
+| #2     | -            | `phase0/wrapup`            | 段階0の仕上げ(README、ai-log、権限設定の修正など)        |
+| #3     | PR1          | `phase1/domain-types`      | 作品と章の型を追加し、サンプルを削除                     |
+| #4     | PR2          | `phase1/works-list-create` | 作品の一覧表示と新規作成                                 |
+| #5     | PR3          | `phase1/work-delete`       | 作品の削除                                               |
+| #6     | PR4          | `phase1/work-status-tabs`  | 作品のステータス変更と、「執筆中 / 完了」のタブ          |
+| #7     | PR5          | `phase1/chapters-api`      | 章の API と、作品の削除時に章も消す処理                  |
+| #8     | PR6          | `phase1/chapters-ui`       | 作品を開いての、章の一覧・追加・削除                     |
+| #9     | PR7          | `phase1/chapter-editor`    | 章の本文の編集・保存と文字数の表示                       |
 
 ## 技術スタック
 
@@ -121,4 +121,4 @@ docs/ai-log.md      AIログ
 - 日本語入力(IME)で変換中の未確定の文字も、文字数に数えます。
 - 同じ章を別のタブで開いている場合、最後に保存したほうが勝ちます(競合は検出しません)。編集中の章は、タブに戻っても取り直さないので、別のタブでの保存は画面に反映されません。
 - E2E テスト(Playwright)は導入していません。画面の振る舞いは、Vitest + Testing Library と MSW のテストで確かめています。
-- `npm audit --omit=dev` が 6 件(低 2・中 4)を報告します。いずれも、画面の部品を追加するための `shadcn` CLI と、それが依存するパッケージ(`@shadcn/registry`、deepmerge、ts-morph、minimatch)です。`shadcn` は `dependencies` に入っています。TypeScript のコードからは import しておらず(CSS の `@import 'shadcn/tailwind.css'` だけ読みます)、ビルドした JavaScript にも含まれません。
+- `npm audit --omit=dev` が 6 件(低 2・中 4)を報告します。いずれも、画面の部品を追加するための `shadcn` CLI と、それが依存するパッケージ(`@shadcn/registry`、deepmerge、ts-morph、`@ts-morph/common`、minimatch)です。`shadcn` は `dependencies` に入っています。TypeScript のコードからは import しておらず(CSS の `@import 'shadcn/tailwind.css'` だけ読みます)、ビルドした JavaScript にも含まれません。
