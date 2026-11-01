@@ -129,6 +129,145 @@ describe('WorkList のステータス別表示', () => {
   })
 })
 
+describe('WorkList のステータス変更', () => {
+  it('ボタンの名前は、執筆中の一覧では「完了にする」、完了の一覧では「執筆中に戻す」になる', async () => {
+    writeDb({
+      works: [makeWork('w1', 'A', 'writing'), makeWork('w2', 'B', 'completed')],
+    })
+
+    const writing = renderWithClient(<WorkList status="writing" />)
+    expect(
+      await screen.findByRole('button', { name: '「A」を完了にする' }),
+    ).toBeInTheDocument()
+    writing.unmount()
+
+    renderWithClient(<WorkList status="completed" />)
+    expect(
+      await screen.findByRole('button', { name: '「B」を執筆中に戻す' }),
+    ).toBeInTheDocument()
+  })
+
+  it('「完了にする」を押すと、その作品だけが執筆中の一覧から消え、保存される', async () => {
+    writeDb({
+      // タイトルをボタンの表示文言(「完了にする」)と同じにすると、text の検索が衝突する
+      works: [makeWork('w1', '残る'), makeWork('w2', '移す作品')],
+    })
+    const user = userEvent.setup()
+    renderWithClient(<WorkList status="writing" />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '「移す作品」を完了にする' }),
+    )
+
+    await waitFor(() =>
+      expect(screen.queryByText('移す作品')).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText('残る')).toBeInTheDocument()
+    expect(readDb().works.map((work) => work.status)).toEqual([
+      'writing',
+      'completed',
+    ])
+  })
+
+  it('完了の一覧で「執筆中に戻す」を押すと、その作品が完了の一覧から消え、保存される', async () => {
+    writeDb({
+      works: [
+        makeWork('w1', '残る', 'completed'),
+        makeWork('w2', '戻す', 'completed'),
+      ],
+    })
+    const user = userEvent.setup()
+    renderWithClient(<WorkList status="completed" />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '「戻す」を執筆中に戻す' }),
+    )
+
+    await waitFor(() =>
+      expect(screen.queryByText('戻す')).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText('残る')).toBeInTheDocument()
+    expect(readDb().works.map((work) => work.status)).toEqual([
+      'completed',
+      'writing',
+    ])
+  })
+
+  it('変更に失敗したら、エラーを表示し、作品は残る', async () => {
+    writeDb({ works: [makeWork('w1', '変わらない作品')] })
+    server.use(
+      http.patch(
+        '/api/works/:id',
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderWithClient(<WorkList status="writing" />)
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: '「変わらない作品」を完了にする',
+      }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'ステータスを変更できませんでした',
+    )
+    expect(screen.getByText('変わらない作品')).toBeInTheDocument()
+    expect(readDb().works[0].status).toBe('writing')
+  })
+
+  it('既に消えた作品の変更は、エラーを表示し、取り直して一覧から消える', async () => {
+    const stay = makeWork('w2', 'ずっと残る作品')
+    writeDb({ works: [makeWork('w1', '別の画面で消えた作品'), stay] })
+    const user = userEvent.setup()
+    renderWithClient(<WorkList status="writing" />)
+    const button = await screen.findByRole('button', {
+      name: '「別の画面で消えた作品」を完了にする',
+    })
+    // 画面の外(別のタブなど)で、先に消えた状況を作る
+    writeDb({ works: [stay] })
+
+    await user.click(button)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'ステータスを変更できませんでした',
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByText('別の画面で消えた作品'),
+      ).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText('ずっと残る作品')).toBeInTheDocument()
+  })
+
+  it('ダブルクリックしても、エラーを出さずに移る', async () => {
+    // 確かめるのは送信回数ではなく結果。同じ値の PATCH は2回送っても結果が同じ。
+    // 別の作品を残す理由は、削除のテストと同じ(空になるとエラーが描画されない)
+    writeDb({
+      works: [makeWork('w1', '二度押す作品'), makeWork('w2', 'ずっと残る作品')],
+    })
+    const user = userEvent.setup({ delay: null })
+    renderWithClient(<WorkList status="writing" />)
+
+    await user.dblClick(
+      await screen.findByRole('button', {
+        name: '「二度押す作品」を完了にする',
+      }),
+    )
+
+    await waitFor(() =>
+      expect(screen.queryByText('二度押す作品')).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText('ずっと残る作品')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(readDb().works.map((work) => work.status)).toEqual([
+      'completed',
+      'writing',
+    ])
+  })
+})
+
 describe('WorkList の削除', () => {
   it('削除ボタンの名前にタイトルが入り、複数の作品が並んでも区別できる', async () => {
     writeDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
