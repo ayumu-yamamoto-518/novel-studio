@@ -34,4 +34,21 @@ describe('App', () => {
 
     expect(await screen.findByRole('listitem')).toHaveTextContent('残る作品')
   })
+
+  it('削除した作品は、画面を開き直しても消えたままである', async () => {
+    const user = userEvent.setup()
+    const first = renderWithClient(<App />)
+
+    await user.type(screen.getByLabelText('タイトル'), '消す作品')
+    await user.click(screen.getByRole('button', { name: '作成' }))
+    await user.click(
+      await screen.findByRole('button', { name: '「消す作品」を削除' }),
+    )
+    expect(await screen.findByText('作品がありません')).toBeInTheDocument()
+    first.unmount()
+
+    renderWithClient(<App />)
+
+    expect(await screen.findByText('作品がありません')).toBeInTheDocument()
+  })
 })
