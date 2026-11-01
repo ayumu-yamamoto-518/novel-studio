@@ -237,14 +237,18 @@ describe('POST /api/works/:workId/chapters', () => {
 })
 
 describe('GET /api/chapters/:id', () => {
-  it('章を 200 で返す(対象は 2 番目。別の作品の章が先頭にあっても)', async () => {
+  it('章を 200 で返す(対象は中間。先頭にも末尾にも別の章がある)', async () => {
     const target: Chapter = {
       ...makeChapter('c2', 'w2', '開く章'),
       body: '本文です。',
     }
     seedDb({
       works: [makeWork('w1', '作品1'), makeWork('w2', '作品2')],
-      chapters: [makeChapter('c1', 'w1', '先頭の章'), target],
+      chapters: [
+        makeChapter('c1', 'w1', '先頭の章'),
+        target,
+        makeChapter('c3', 'w2', '末尾の章'),
+      ],
     })
 
     const res = await fetch('/api/chapters/c2')
