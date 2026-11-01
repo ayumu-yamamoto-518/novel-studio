@@ -307,6 +307,28 @@ describe('ChapterEditor の保存', () => {
     expect(readDb().chapters[1].body).toBe('こんにちは\n世界')
   })
 
+  it('保存に失敗したあと、入力を元に戻して「保存済み」になったら、エラー表示は消える', async () => {
+    seedChapters()
+    server.use(
+      http.patch(
+        '/api/chapters/:id',
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderEditor('c2')
+    await user.type(await screen.findByLabelText('本文'), '！')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '保存できませんでした',
+    )
+
+    await user.type(screen.getByLabelText('本文'), '{Backspace}')
+
+    expect(screen.getByRole('status')).toHaveTextContent('保存済み')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('失敗のあとにもう一度保存して成功すると、エラーが消え、「保存済み」になる', async () => {
     seedChapters()
     server.use(

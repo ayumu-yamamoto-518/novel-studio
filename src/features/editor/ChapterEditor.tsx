@@ -101,7 +101,8 @@ function EditorForm({
           {isDirty ? '未保存の変更があります' : '保存済み'}
         </p>
       </div>
-      {error && (
+      {/* 入力を元に戻して「保存済み」になったら、保存失敗の表示は不要なので消す */}
+      {error && isDirty && (
         <p role="alert" className="text-sm text-destructive">
           {error.message}
         </p>
