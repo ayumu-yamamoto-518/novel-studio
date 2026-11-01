@@ -74,6 +74,8 @@ CLAUDE.md の規則ではなく、運用の手順です。1つの PR を、次�
 | #8     | PR6          | `phase1/chapters-ui`       | 作品を開いての、章の一覧・追加・削除                     |
 | #9     | PR7          | `phase1/chapter-editor`    | 章の本文の編集・保存と文字数の表示                       |
 
+#10 以降は段階3(提出に向けた仕上げ)です。
+
 ## 技術スタック
 
 Vite / React / TypeScript(strict) / Tailwind CSS / shadcn/ui / jotai / TanStack Query / MSW / Vitest + Testing Library / ESLint / Prettier / GitHub Actions
@@ -107,6 +109,7 @@ src/
     works/          作品(型・API ハンドラ・一覧・作成フォーム・削除・ステータスのタブ・作品の画面)
     chapters/       章(型・API ハンドラ・一覧・作成フォーム・削除)
     editor/         本文エディタ(本文の編集・保存・文字数)
+  start-app.tsx     起動処理(MSW の起動に失敗したときのエラー表示を含む)
   lib/              共通ユーティリティ(QueryClient、タイトルの検証、fetch の共通部分など)
   mocks/            MSW のハンドラ(ブラウザ用・テスト用)と、保存先の db(localStorage。作品と章)
   test/             テストの共通設定
@@ -115,10 +118,9 @@ docs/ai-log.md      AIログ
 
 ## 既知の課題
 
-- MSW の起動(Service Worker の登録)に失敗すると、画面が何も表示されません。Service Worker が使えない環境などで起きます。
 - 画面の切り替え(作品の一覧・作品の画面・本文エディタ)を jotai の状態で行っているため、ブラウザの戻るボタンと URL 共有は効きません。作品の画面や本文エディタでリロードすると、作品の一覧に戻ります。react-router の導入は、変更が大きいため見送っています。
 - 本文は自動保存されません。「保存」を押す前にリロードすると、未保存の本文は失われます(本文エディタから「戻る」ときは確認が出ますが、リロードやタブを閉じるときは出ません)。
 - 日本語入力(IME)で変換中の未確定の文字も、文字数に数えます。
 - 同じ章を別のタブで開いている場合、最後に保存したほうが勝ちます(競合は検出しません)。編集中の章は、タブに戻っても取り直さないので、別のタブでの保存は画面に反映されません。
 - E2E テスト(Playwright)は導入していません。画面の振る舞いは、Vitest + Testing Library と MSW のテストで確かめています。
-- `npm audit --omit=dev` が 6 件(低 2・中 4)を報告します。いずれも、画面の部品を追加するための `shadcn` CLI と、それが依存するパッケージ(`@shadcn/registry`、deepmerge、ts-morph、`@ts-morph/common`、minimatch)です。`shadcn` は `dependencies` に入っています。TypeScript のコードからは import しておらず(CSS の `@import 'shadcn/tailwind.css'` だけ読みます)、ビルドした JavaScript にも含まれません。
+- `npm audit --omit=dev` は 0 件です。ただし、部品を追加するためのビルド用の `shadcn` CLI は `devDependencies` に残っており、開発依存を含む `npm audit` では指摘が残ります(16 件。低 2・中 14)。TypeScript のコードからは import しておらず(CSS の `@import 'shadcn/tailwind.css'` だけ読みます)、ビルドした JavaScript にも含まれません。
