@@ -4,6 +4,7 @@ import {
   deleteChapter,
   fetchChapter,
   fetchChapters,
+  updateChapterBody,
 } from './api'
 
 export function useChapters(workId: string) {
@@ -18,6 +19,17 @@ export function useChapter(id: string) {
   return useQuery({
     queryKey: ['chapter', id],
     queryFn: () => fetchChapter(id),
+  })
+}
+
+// 保存に成功したら、応答の章でキャッシュを置き換える(再取得を待たずに「保存済み」になる)。
+// 失敗したときは何も変えない(下書きが残り、「未保存」のままになる)
+export function useUpdateChapterBody(id: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (body: string) => updateChapterBody(id, body),
+    onSuccess: (chapter) => queryClient.setQueryData(['chapter', id], chapter),
   })
 }
 
