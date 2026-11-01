@@ -6,11 +6,15 @@ import type { Work } from './types'
 // server.use で足さず、素の fetch を投げることで、
 // 「server → handlers → worksHandlers」の配線そのものを確かめる。
 
-function makeWork(id: string, title: string): Work {
+function makeWork(
+  id: string,
+  title: string,
+  status: Work['status'] = 'writing',
+): Work {
   return {
     id,
     title,
-    status: 'writing',
+    status,
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
   }
@@ -42,6 +46,59 @@ describe('GET /api/works', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
   })
+})
+
+describe('GET /api/works?status=', () => {
+  const writing1 = makeWork('w1', '執筆中1', 'writing')
+  const completed1 = makeWork('w2', '完了1', 'completed')
+  const writing2 = makeWork('w3', '執筆中2', 'writing')
+  const completed2 = makeWork('w4', '完了2', 'completed')
+
+  it('writing を指定すると、執筆中の作品だけを新しい順で返す', async () => {
+    writeDb({ works: [writing1, completed1, writing2, completed2] })
+
+    const res = await fetch('/api/works?status=writing')
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([writing2, writing1])
+  })
+
+  it('completed を指定すると、完了の作品だけを新しい順で返す', async () => {
+    writeDb({ works: [writing1, completed1, writing2, completed2] })
+
+    const res = await fetch('/api/works?status=completed')
+
+    expect(await res.json()).toEqual([completed2, completed1])
+  })
+
+  it('指定した状態の作品がなければ、空の配列を返す', async () => {
+    writeDb({ works: [writing1] })
+
+    const res = await fetch('/api/works?status=completed')
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
+  })
+
+  it('status を省略すると、全件を新しい順で返す', async () => {
+    writeDb({ works: [writing1, completed1] })
+
+    const res = await fetch('/api/works')
+
+    expect(await res.json()).toEqual([completed1, writing1])
+  })
+
+  it.each(['archived', '', 'WRITING'])(
+    '不正な status(%j)は、400 とメッセージを返す',
+    async (status) => {
+      writeDb({ works: [writing1] })
+
+      const res = await fetch(`/api/works?status=${status}`)
+
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ message: expect.any(String) })
+    },
+  )
 })
 
 function postWork(body: unknown) {
