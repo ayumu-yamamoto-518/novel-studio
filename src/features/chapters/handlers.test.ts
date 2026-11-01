@@ -223,3 +223,49 @@ describe('POST /api/works/:workId/chapters', () => {
     ).toEqual(['A', 'B'])
   })
 })
+
+describe('DELETE /api/chapters/:id', () => {
+  it('204 を返し、章が一覧と localStorage から消える', async () => {
+    const target = makeChapter('c1', 'w1', '消す章')
+    seedDb({ works: [makeWork('w1', '作品1')], chapters: [target] })
+
+    const res = await fetch('/api/chapters/c1', { method: 'DELETE' })
+
+    expect(res.status).toBe(204)
+    expect(readDb().chapters).toEqual([])
+    expect(await (await fetch('/api/works/w1/chapters')).json()).toEqual([])
+  })
+
+  it('指定した章だけを消し、同じ作品の他の章・別の作品の章・作品は残す', async () => {
+    const before = makeChapter('c1', 'w1', '前の章')
+    const target = makeChapter('c2', 'w1', '消す章')
+    const after = makeChapter('c3', 'w1', '後の章')
+    const otherWorks = makeChapter('c4', 'w2', '別の作品の章')
+    const works = [makeWork('w1', '作品1'), makeWork('w2', '作品2')]
+    seedDb({ works, chapters: [before, target, after, otherWorks] })
+
+    await fetch('/api/chapters/c2', { method: 'DELETE' })
+
+    expect(readDb().chapters).toEqual([before, after, otherWorks])
+    expect(readDb().works).toEqual(works)
+  })
+
+  it('存在しない id は、404 とメッセージを返し、何も変えない', async () => {
+    const existing = makeChapter('c1', 'w1', '残る章')
+    seedDb({ works: [makeWork('w1', '作品1')], chapters: [existing] })
+
+    const res = await fetch('/api/chapters/unknown', { method: 'DELETE' })
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ message: '章が見つかりません' })
+    expect(readDb().chapters).toEqual([existing])
+  })
+
+  it('保存先が壊れた JSON でも、404 を返す', async () => {
+    localStorage.setItem('novel-studio:db', '{broken')
+
+    const res = await fetch('/api/chapters/c1', { method: 'DELETE' })
+
+    expect(res.status).toBe(404)
+  })
+})
