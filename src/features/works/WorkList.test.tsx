@@ -268,6 +268,78 @@ describe('WorkList のステータス変更', () => {
   })
 })
 
+describe('WorkList の操作中の無効化', () => {
+  // 応答を保留にして、操作が進行中の状態を作る
+  function gate() {
+    let release!: () => void
+    const promise = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    return { promise, release }
+  }
+
+  it('ステータスを変更している間は、すべての行の「変更」と「削除」が無効になる', async () => {
+    writeDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
+    const { promise, release } = gate()
+    server.use(
+      http.patch('/api/works/:id', async () => {
+        await promise
+        return new HttpResponse(null, { status: 500 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderWithClient(<WorkList status="writing" />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '「A」を完了にする' }),
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: '「B」を完了にする' }),
+      ).toBeDisabled(),
+    )
+    expect(screen.getByRole('button', { name: '「B」を削除' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '「A」を削除' })).toBeDisabled()
+
+    release()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: '「B」を完了にする' }),
+      ).toBeEnabled(),
+    )
+  })
+
+  it('削除している間は、すべての行の「変更」と「削除」が無効になる', async () => {
+    writeDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
+    const { promise, release } = gate()
+    server.use(
+      http.delete('/api/works/:id', async () => {
+        await promise
+        return new HttpResponse(null, { status: 500 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderWithClient(<WorkList status="writing" />)
+
+    await user.click(await screen.findByRole('button', { name: '「A」を削除' }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: '「B」を削除' }),
+      ).toBeDisabled(),
+    )
+    expect(
+      screen.getByRole('button', { name: '「B」を完了にする' }),
+    ).toBeDisabled()
+
+    release()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '「B」を削除' })).toBeEnabled(),
+    )
+  })
+})
+
 describe('WorkList の削除', () => {
   it('削除ボタンの名前にタイトルが入り、複数の作品が並んでも区別できる', async () => {
     writeDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
