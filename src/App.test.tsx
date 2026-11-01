@@ -1,6 +1,6 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { seedDb } from '@/test/db'
 import { renderWithClient } from '@/test/render'
 import App from './App'
@@ -17,12 +17,17 @@ function makeWork(id: string, title: string, status: Work['status']): Work {
   }
 }
 
-function makeChapter(id: string, workId: string, title: string): Chapter {
+function makeChapter(
+  id: string,
+  workId: string,
+  title: string,
+  body = '',
+): Chapter {
   return {
     id,
     workId,
     title,
-    body: '',
+    body,
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
   }
@@ -277,6 +282,205 @@ describe('App の作品の画面', () => {
     expect(await screen.findByRole('button', { name: 'A作品' })).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'B作品' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe('App の本文エディタ', () => {
+  // 開く作品は w2、章は 2 番目(先頭の作品や章を固定で見ていても通らないようにする)
+  const works = [
+    makeWork('w1', 'A作品', 'writing'),
+    makeWork('w2', 'B作品', 'writing'),
+  ]
+  function seedChapters() {
+    seedDb({
+      works,
+      chapters: [
+        makeChapter('c1', 'w1', 'Aの章', 'Aの本文'),
+        makeChapter('c2', 'w2', 'Bの第一章', '第一章の本文'),
+        makeChapter('c3', 'w2', 'Bの第二章', '第二章の本文'),
+      ],
+    })
+  }
+  async function openWorkB(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: 'B作品' }))
+  }
+
+  it('章名を押すと、本文エディタに切り替わる(章の一覧と追加フォームは消える)', async () => {
+    seedChapters()
+    const user = userEvent.setup()
+    renderWithClient(<App />)
+    await openWorkB(user)
+
+    await user.click(await screen.findByRole('button', { name: 'Bの第二章' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Bの第二章' }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('本文')).toHaveValue('第二章の本文')
+    expect(screen.queryByLabelText('章のタイトル')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Bの第一章' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('「章の一覧に戻る」を押すと、同じ作品の章の一覧に戻る(作品の画面のまま)', async () => {
+    seedChapters()
+    const user = userEvent.setup()
+    renderWithClient(<App />)
+    await openWorkB(user)
+    await user.click(await screen.findByRole('button', { name: 'Bの第二章' }))
+
+    await user.click(
+      await screen.findByRole('button', { name: '章の一覧に戻る' }),
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'B作品' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bの第一章' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Bの第二章' })).toBeVisible()
+    expect(screen.queryByText('Aの章')).not.toBeInTheDocument()
+  })
+
+  it('編集して保存し、戻って開き直すと、保存した本文が残っている', async () => {
+    seedChapters()
+    const user = userEvent.setup()
+    renderWithClient(<App />)
+    await openWorkB(user)
+    await user.click(await screen.findByRole('button', { name: 'Bの第二章' }))
+    await user.type(await screen.findByLabelText('本文'), '！追記')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('保存済み'),
+    )
+
+    // 保存済みなので、確認なしで戻れる
+    await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+    await user.click(await screen.findByRole('button', { name: 'Bの第二章' }))
+
+    expect(await screen.findByLabelText('本文')).toHaveValue(
+      '第二章の本文！追記',
+    )
+  })
+
+  it('未保存で戻ろうとして確認をキャンセルすると、エディタに残り、下書きも残る', async () => {
+    seedChapters()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const user = userEvent.setup()
+    renderWithClient(<App />)
+    await openWorkB(user)
+    await user.click(await screen.findByRole('button', { name: 'Bの第二章' }))
+    await user.type(await screen.findByLabelText('本文'), '！追記')
+
+    try {
+      await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+
+      expect(confirm).toHaveBeenCalledTimes(1)
+      expect(screen.getByLabelText('本文')).toHaveValue('第二章の本文！追記')
+      expect(
+        screen.getByRole('heading', { name: 'Bの第二章' }),
+      ).toBeInTheDocument()
+    } finally {
+      confirm.mockRestore()
+    }
+  })
+
+  it('未保存で戻って確認を OK にすると、章の一覧に戻り、開き直すと保存前の本文である', async () => {
+    seedChapters()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = userEvent.setup()
+    renderWithClient(<App />)
+    await openWorkB(user)
+    await user.click(await screen.findByRole('button', { name: 'Bの第二章' }))
+    await user.type(await screen.findByLabelText('本文'), '！捨てる追記')
+
+    try {
+      await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+      await user.click(await screen.findByRole('button', { name: 'Bの第二章' }))
+
+      expect(await screen.findByLabelText('本文')).toHaveValue('第二章の本文')
+      expect(screen.getByRole('status')).toHaveTextContent('保存済み')
+    } finally {
+      confirm.mockRestore()
+    }
+  })
+
+  it('別の章を開くと、前の章の本文や下書きではなく、その章の本文が出る', async () => {
+    seedChapters()
+    const user = userEvent.setup()
+    renderWithClient(<App />)
+    await openWorkB(user)
+    await user.click(await screen.findByRole('button', { name: 'Bの第一章' }))
+    expect(await screen.findByLabelText('本文')).toHaveValue('第一章の本文')
+    await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+
+    await user.click(await screen.findByRole('button', { name: 'Bの第二章' }))
+
+    expect(await screen.findByLabelText('本文')).toHaveValue('第二章の本文')
+    expect(
+      screen.getByRole('heading', { name: 'Bの第二章' }),
+    ).toBeInTheDocument()
+  })
+
+  it('章の一覧から作品の一覧まで戻っても、「完了」タブの選択が保たれている', async () => {
+    seedDb({
+      works: [
+        makeWork('w1', '執筆中の作品', 'writing'),
+        makeWork('w2', '完了した作品', 'completed'),
+      ],
+      chapters: [makeChapter('c1', 'w2', '完了作品の章', '本文')],
+    })
+    const user = userEvent.setup()
+    renderWithClient(<App />)
+    await user.click(screen.getByRole('tab', { name: '完了' }))
+    await user.click(
+      await screen.findByRole('button', { name: '完了した作品' }),
+    )
+    await user.click(
+      await screen.findByRole('button', { name: '完了作品の章' }),
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: '章の一覧に戻る' }),
+    )
+    await user.click(
+      await screen.findByRole('button', { name: '作品一覧に戻る' }),
+    )
+
+    expect(await screen.findByRole('tab', { name: '完了' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(
+      await screen.findByRole('button', { name: '完了した作品' }),
+    ).toBeVisible()
+  })
+
+  it('開いている章が消えていたら(別のタブで削除)、「章が見つかりません」を表示して戻れる', async () => {
+    seedChapters()
+    const user = userEvent.setup()
+    renderWithClient(<App />)
+    await openWorkB(user)
+    const button = await screen.findByRole('button', { name: 'Bの第二章' })
+    // 一覧には出ているが、開く前に保存先から消えた状況
+    seedDb({
+      works,
+      chapters: [
+        makeChapter('c1', 'w1', 'Aの章', 'Aの本文'),
+        makeChapter('c2', 'w2', 'Bの第一章', '第一章の本文'),
+      ],
+    })
+
+    await user.click(button)
+
+    expect(await screen.findByText('章が見つかりません')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+    expect(
+      await screen.findByRole('button', { name: 'Bの第一章' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Bの第二章' }),
     ).not.toBeInTheDocument()
   })
 })

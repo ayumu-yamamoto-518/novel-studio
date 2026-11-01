@@ -7,6 +7,29 @@ export async function fetchChapters(workId: string): Promise<Chapter[]> {
   return res.json()
 }
 
+// 404(章が無い)は、例外ではなく null で返す。例外にすると、本番の QueryClient が
+// 既定で再試行し、「章が見つかりません」を出すまで数秒待たされるため。
+export async function fetchChapter(id: string): Promise<Chapter | null> {
+  const res = await fetch(`/api/chapters/${encodeURIComponent(id)}`)
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`章の取得に失敗しました: ${res.status}`)
+  return res.json()
+}
+
+// 本文だけを保存する。失敗は、画面に出せる固定のメッセージにする
+export async function updateChapterBody(
+  id: string,
+  body: string,
+): Promise<Chapter> {
+  const res = await fetch(`/api/chapters/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body }),
+  })
+  if (!res.ok) throw new Error('保存できませんでした')
+  return res.json()
+}
+
 export function deleteChapter(id: string): Promise<void> {
   return deleteIdempotent(
     `/api/chapters/${encodeURIComponent(id)}`,

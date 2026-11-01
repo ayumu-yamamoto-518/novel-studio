@@ -6,9 +6,11 @@ import { useWork } from './queries'
 export function WorkDetail({
   workId,
   onBack,
+  onOpenChapter,
 }: {
   workId: string
   onBack: () => void
+  onOpenChapter: (chapterId: string) => void
 }) {
   const { data: work, isPending, isError } = useWork(workId)
 
@@ -44,7 +46,7 @@ export function WorkDetail({
       </Button>
       <h2 className="text-xl font-bold break-all">{work.title}</h2>
       <ChapterForm workId={workId} />
-      <ChapterList workId={workId} />
+      <ChapterList workId={workId} onOpen={onOpenChapter} />
     </div>
   )
 }

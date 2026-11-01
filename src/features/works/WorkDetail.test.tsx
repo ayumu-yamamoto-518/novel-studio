@@ -33,7 +33,9 @@ function makeChapter(id: string, workId: string, title: string): Chapter {
 
 describe('WorkDetail', () => {
   it('読み込み中は、その旨を表示する', () => {
-    renderWithClient(<WorkDetail workId="w1" onBack={() => {}} />)
+    renderWithClient(
+      <WorkDetail workId="w1" onBack={() => {}} onOpenChapter={() => {}} />,
+    )
 
     expect(screen.getByText('読み込み中…')).toBeInTheDocument()
   })
@@ -43,7 +45,9 @@ describe('WorkDetail', () => {
       works: [makeWork('w1', '別の作品'), makeWork('w2', '開いた作品')],
     })
 
-    renderWithClient(<WorkDetail workId="w2" onBack={() => {}} />)
+    renderWithClient(
+      <WorkDetail workId="w2" onBack={() => {}} onOpenChapter={() => {}} />,
+    )
 
     expect(
       await screen.findByRole('heading', { name: '開いた作品' }),
@@ -57,7 +61,9 @@ describe('WorkDetail', () => {
     seedDb({ works: [makeWork('w1', '作品1')] })
     const onBack = vi.fn()
     const user = userEvent.setup()
-    renderWithClient(<WorkDetail workId="w1" onBack={onBack} />)
+    renderWithClient(
+      <WorkDetail workId="w1" onBack={onBack} onOpenChapter={() => {}} />,
+    )
 
     await user.click(
       await screen.findByRole('button', { name: '作品一覧に戻る' }),
@@ -77,7 +83,9 @@ describe('WorkDetail', () => {
       ],
     })
 
-    renderWithClient(<WorkDetail workId="w2" onBack={() => {}} />)
+    renderWithClient(
+      <WorkDetail workId="w2" onBack={() => {}} onOpenChapter={() => {}} />,
+    )
 
     const items = await screen.findAllByRole('listitem')
     expect(items.map((item) => item.textContent)).toEqual([
@@ -91,7 +99,9 @@ describe('WorkDetail', () => {
     // 開く作品は w2(固定の w1 に作られていても通ってしまわないよう、先頭の作品にしない)
     seedDb({ works: [makeWork('w1', '作品1'), makeWork('w2', '作品2')] })
     const user = userEvent.setup()
-    renderWithClient(<WorkDetail workId="w2" onBack={() => {}} />)
+    renderWithClient(
+      <WorkDetail workId="w2" onBack={() => {}} onOpenChapter={() => {}} />,
+    )
 
     await user.type(await screen.findByLabelText('章のタイトル'), '第一章')
     await user.click(screen.getByRole('button', { name: '章を追加' }))
@@ -100,11 +110,39 @@ describe('WorkDetail', () => {
     expect(readDb().chapters.map((chapter) => chapter.workId)).toEqual(['w2'])
   })
 
+  it('章名を押すと、その章の id で onOpenChapter が呼ばれる(開く作品は w2、対象は中間の章)', async () => {
+    seedDb({
+      works: [makeWork('w1', '作品1'), makeWork('w2', '作品2')],
+      chapters: [
+        makeChapter('c1', 'w1', '別の作品の章'),
+        makeChapter('c2', 'w2', '最初の章'),
+        makeChapter('c3', 'w2', '中間の章'),
+        makeChapter('c4', 'w2', '最後の章'),
+      ],
+    })
+    const onOpenChapter = vi.fn()
+    const user = userEvent.setup()
+    renderWithClient(
+      <WorkDetail
+        workId="w2"
+        onBack={() => {}}
+        onOpenChapter={onOpenChapter}
+      />,
+    )
+
+    await user.click(await screen.findByRole('button', { name: '中間の章' }))
+
+    expect(onOpenChapter).toHaveBeenCalledTimes(1)
+    expect(onOpenChapter).toHaveBeenCalledWith('c3')
+  })
+
   describe('作品が見つからないとき(別のタブで削除された場合など)', () => {
     it('「作品が見つかりません」と戻るボタンだけを表示する(章の画面は出さない)', async () => {
       seedDb({ works: [makeWork('w1', '残る作品')] })
 
-      renderWithClient(<WorkDetail workId="gone" onBack={() => {}} />)
+      renderWithClient(
+        <WorkDetail workId="gone" onBack={() => {}} onOpenChapter={() => {}} />,
+      )
 
       expect(
         await screen.findByText('作品が見つかりません'),
@@ -119,7 +157,9 @@ describe('WorkDetail', () => {
     it('戻るボタンで onBack が呼ばれる', async () => {
       const onBack = vi.fn()
       const user = userEvent.setup()
-      renderWithClient(<WorkDetail workId="gone" onBack={onBack} />)
+      renderWithClient(
+        <WorkDetail workId="gone" onBack={onBack} onOpenChapter={() => {}} />,
+      )
 
       await user.click(
         await screen.findByRole('button', { name: '作品一覧に戻る' }),
@@ -137,7 +177,9 @@ describe('WorkDetail', () => {
       )
       const onBack = vi.fn()
       const user = userEvent.setup()
-      renderWithClient(<WorkDetail workId="w1" onBack={onBack} />)
+      renderWithClient(
+        <WorkDetail workId="w1" onBack={onBack} onOpenChapter={() => {}} />,
+      )
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         '作品を読み込めませんでした',

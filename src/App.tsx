@@ -1,12 +1,16 @@
 import { useAtom } from 'jotai'
+import { selectedChapterIdAtom } from '@/features/chapters/state'
+import { ChapterEditor } from '@/features/editor/ChapterEditor'
 import { selectedWorkIdAtom } from '@/features/works/state'
 import { WorkDetail } from '@/features/works/WorkDetail'
 import { WorkForm } from '@/features/works/WorkForm'
 import { WorkTabs } from '@/features/works/WorkTabs'
 
 function App() {
-  // null なら作品の一覧、値があればその作品の画面。戻っても、一覧のタブは変えない
+  // 画面は 3 段: 作品の一覧 → 作品の画面(章の一覧)→ 本文エディタ。
+  // 戻ると 1 段ずつ上がる。戻っても、一覧のタブ(statusTabAtom)は変えない
   const [workId, setWorkId] = useAtom(selectedWorkIdAtom)
+  const [chapterId, setChapterId] = useAtom(selectedChapterIdAtom)
 
   return (
     <main className="mx-auto max-w-xl space-y-6 p-6">
@@ -16,8 +20,17 @@ function App() {
           <WorkForm />
           <WorkTabs />
         </>
+      ) : chapterId === null ? (
+        <WorkDetail
+          workId={workId}
+          onBack={() => setWorkId(null)}
+          onOpenChapter={setChapterId}
+        />
       ) : (
-        <WorkDetail workId={workId} onBack={() => setWorkId(null)} />
+        <ChapterEditor
+          chapterId={chapterId}
+          onBack={() => setChapterId(null)}
+        />
       )}
     </main>
   )

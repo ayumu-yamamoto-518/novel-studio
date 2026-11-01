@@ -22,7 +22,7 @@ function renderFormAndList() {
   return renderWithClient(
     <>
       <ChapterForm workId="w2" />
-      <ChapterList workId="w2" />
+      <ChapterList workId="w2" onOpen={() => {}} />
     </>,
   )
 }

@@ -67,6 +67,59 @@ export const chaptersHandlers = [
     return HttpResponse.json(chapter, { status: 201 })
   }),
 
+  http.get('/api/chapters/:id', ({ params }) => {
+    const chapter = readDb().chapters.find(
+      (chapter) => chapter.id === params.id,
+    )
+    if (!chapter) {
+      return HttpResponse.json(
+        { message: '章が見つかりません' },
+        { status: 404 },
+      )
+    }
+    return HttpResponse.json(chapter)
+  }),
+
+  // 受け付けるのは本文(body)の変更だけ(章名の変更は、必要になった時点で足す)
+  http.patch('/api/chapters/:id', async ({ params, request }) => {
+    // 本文の形の不正は、章の存在より先に返す(作品の PATCH と同じ順序)
+    const requestBody = await readJson(request)
+    if (
+      typeof requestBody !== 'object' ||
+      requestBody === null ||
+      !('body' in requestBody) ||
+      typeof requestBody.body !== 'string'
+    ) {
+      return HttpResponse.json(
+        { message: 'リクエストの形式が正しくありません' },
+        { status: 400 },
+      )
+    }
+
+    // 読み込みから書き込みの間に await を挟まない
+    const db = readDb()
+    const current = db.chapters.find((chapter) => chapter.id === params.id)
+    if (!current) {
+      return HttpResponse.json(
+        { message: '章が見つかりません' },
+        { status: 404 },
+      )
+    }
+
+    const updated: Chapter = {
+      ...current,
+      body: requestBody.body,
+      updatedAt: new Date().toISOString(),
+    }
+    writeDb({
+      ...db,
+      chapters: db.chapters.map((chapter) =>
+        chapter.id === updated.id ? updated : chapter,
+      ),
+    })
+    return HttpResponse.json(updated)
+  }),
+
   http.delete('/api/chapters/:id', ({ params }) => {
     const db = readDb()
     if (!db.chapters.some((chapter) => chapter.id === params.id)) {
