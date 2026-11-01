@@ -18,7 +18,8 @@ export function WorkTabs() {
         <TabsTrigger value="completed">完了</TabsTrigger>
       </TabsList>
       <TabsContent value={status}>
-        <WorkList status={status} />
+        {/* key で作り直し、操作中の状態やエラー表示を別のタブへ持ち越さない */}
+        <WorkList key={status} status={status} />
       </TabsContent>
     </Tabs>
   )

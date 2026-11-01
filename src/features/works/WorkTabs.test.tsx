@@ -1,7 +1,9 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { http, HttpResponse } from 'msw'
 import { writeDb } from '@/mocks/db'
+import { server } from '@/mocks/server'
 import { renderWithClient } from '@/test/render'
 import type { Work } from './types'
 import { WorkTabs } from './WorkTabs'
@@ -102,6 +104,36 @@ describe('WorkTabs', () => {
     ).toBeInTheDocument()
   })
 
+  it('変更の失敗によるエラー表示は、別のタブへ移っても残らない', async () => {
+    writeDb({
+      works: [
+        makeWork('w1', '失敗する作品', 'writing'),
+        makeWork('w2', '完了した作品', 'completed'),
+      ],
+    })
+    server.use(
+      http.patch(
+        '/api/works/:id',
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    )
+    const user = userEvent.setup()
+    renderWithClient(<WorkTabs />)
+    await user.click(
+      await screen.findByRole('button', {
+        name: '「失敗する作品」を完了にする',
+      }),
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'ステータスを変更できませんでした',
+    )
+
+    await user.click(screen.getByRole('tab', { name: '完了' }))
+
+    expect(await screen.findByText('完了した作品')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('タブごとに、空の状態の文言が違う', async () => {
     const user = userEvent.setup()
     renderWithClient(<WorkTabs />)
@@ -119,9 +151,18 @@ describe('WorkTabs', () => {
     ).not.toBeInTheDocument()
   })
 
-  // 直前のテストが「完了」タブを選んだまま終わる。選択が次のテストへ漏れないことを確かめる
-  // (render の Provider を外すと、ここが失敗する)
-  it('選択したタブは、次のテストに引き継がれない(初期は「執筆中」)', () => {
+  // 他のテストの順序に頼らず、この1つで完結させる。
+  // render の Provider を外すと、選択が次の render に残るので失敗する
+  it('選択したタブは、描画し直すと引き継がれない(render ごとに新しい store)', async () => {
+    const user = userEvent.setup()
+    const first = renderWithClient(<WorkTabs />)
+    await user.click(screen.getByRole('tab', { name: '完了' }))
+    expect(screen.getByRole('tab', { name: '完了' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    first.unmount()
+
     renderWithClient(<WorkTabs />)
 
     expect(screen.getByRole('tab', { name: '執筆中' })).toHaveAttribute(
