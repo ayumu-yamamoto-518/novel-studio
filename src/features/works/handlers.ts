@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { readDb, writeDb } from '@/mocks/db'
-import { validateTitle } from './title'
+import { validateTitle } from '@/lib/title'
 import type { Work, WorkStatus } from './types'
 
 function isWorkStatus(value: unknown): value is WorkStatus {
