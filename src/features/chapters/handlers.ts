@@ -67,6 +67,19 @@ export const chaptersHandlers = [
     return HttpResponse.json(chapter, { status: 201 })
   }),
 
+  http.get('/api/chapters/:id', ({ params }) => {
+    const chapter = readDb().chapters.find(
+      (chapter) => chapter.id === params.id,
+    )
+    if (!chapter) {
+      return HttpResponse.json(
+        { message: '章が見つかりません' },
+        { status: 404 },
+      )
+    }
+    return HttpResponse.json(chapter)
+  }),
+
   http.delete('/api/chapters/:id', ({ params }) => {
     const db = readDb()
     if (!db.chapters.some((chapter) => chapter.id === params.id)) {

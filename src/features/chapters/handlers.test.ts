@@ -236,6 +236,44 @@ describe('POST /api/works/:workId/chapters', () => {
   })
 })
 
+describe('GET /api/chapters/:id', () => {
+  it('章を 200 で返す(対象は 2 番目。別の作品の章が先頭にあっても)', async () => {
+    const target: Chapter = {
+      ...makeChapter('c2', 'w2', '開く章'),
+      body: '本文です。',
+    }
+    seedDb({
+      works: [makeWork('w1', '作品1'), makeWork('w2', '作品2')],
+      chapters: [makeChapter('c1', 'w1', '先頭の章'), target],
+    })
+
+    const res = await fetch('/api/chapters/c2')
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(target)
+  })
+
+  it('存在しない id は、404 とメッセージを返す', async () => {
+    seedDb({
+      works: [makeWork('w1', '作品1')],
+      chapters: [makeChapter('c1', 'w1', '残る章')],
+    })
+
+    const res = await fetch('/api/chapters/unknown')
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ message: '章が見つかりません' })
+  })
+
+  it('保存先が壊れた JSON でも、404 を返す', async () => {
+    localStorage.setItem('novel-studio:db', '{broken')
+
+    const res = await fetch('/api/chapters/c1')
+
+    expect(res.status).toBe(404)
+  })
+})
+
 describe('DELETE /api/chapters/:id', () => {
   it('204 を返し、章が一覧と localStorage から消える', async () => {
     const target = makeChapter('c1', 'w1', '消す章')
