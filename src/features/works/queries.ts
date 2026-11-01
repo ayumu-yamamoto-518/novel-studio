@@ -1,8 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createWork, deleteWork, fetchWorks } from './api'
+import type { WorkStatus } from './types'
 
-export function useWorks() {
-  return useQuery({ queryKey: ['works'], queryFn: fetchWorks })
+// キーの先頭が ['works'] なので、['works'] での invalidate は全ステータスに効く
+export function useWorks(status: WorkStatus) {
+  return useQuery({
+    queryKey: ['works', { status }],
+    queryFn: () => fetchWorks(status),
+  })
 }
 
 export function useCreateWork() {

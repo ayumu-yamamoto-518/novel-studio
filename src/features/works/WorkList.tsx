@@ -1,8 +1,14 @@
 import { Button } from '@/components/ui/button'
 import { useDeleteWork, useWorks } from './queries'
+import type { WorkStatus } from './types'
 
-export function WorkList() {
-  const { data, isPending, isError } = useWorks()
+const EMPTY_MESSAGES: Record<WorkStatus, string> = {
+  writing: '執筆中の作品がありません',
+  completed: '完了した作品がありません',
+}
+
+export function WorkList({ status }: { status: WorkStatus }) {
+  const { data, isPending, isError } = useWorks(status)
   const {
     mutate: remove,
     isPending: isDeleting,
@@ -17,7 +23,7 @@ export function WorkList() {
       </p>
     )
   }
-  if (data.length === 0) return <p>作品がありません</p>
+  if (data.length === 0) return <p>{EMPTY_MESSAGES[status]}</p>
 
   return (
     <>

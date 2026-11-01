@@ -12,7 +12,7 @@ function renderFormAndList() {
   return renderWithClient(
     <>
       <WorkForm />
-      <WorkList />
+      <WorkList status="writing" />
     </>,
   )
 }
@@ -29,7 +29,9 @@ describe('WorkForm', () => {
       '吾輩は猫である',
     )
     expect(screen.getByLabelText('タイトル')).toHaveValue('')
-    expect(screen.queryByText('作品がありません')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('執筆中の作品がありません'),
+    ).not.toBeInTheDocument()
   })
 
   it('空のまま作成すると、検証メッセージを表示し、何も作らない', async () => {

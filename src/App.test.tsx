@@ -19,7 +19,9 @@ describe('App', () => {
 
     expect(screen.getByLabelText('タイトル')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '作成' })).toBeInTheDocument()
-    expect(await screen.findByText('作品がありません')).toBeInTheDocument()
+    expect(
+      await screen.findByText('執筆中の作品がありません'),
+    ).toBeInTheDocument()
   })
 
   it('作った作品は、画面を開き直しても(別のキャッシュでも)表示される', async () => {
@@ -55,11 +57,15 @@ describe('App', () => {
     await user.click(
       await screen.findByRole('button', { name: '「消す作品」を削除' }),
     )
-    expect(await screen.findByText('作品がありません')).toBeInTheDocument()
+    expect(
+      await screen.findByText('執筆中の作品がありません'),
+    ).toBeInTheDocument()
     first.unmount()
 
     renderWithClient(<App />)
 
-    expect(await screen.findByText('作品がありません')).toBeInTheDocument()
+    expect(
+      await screen.findByText('執筆中の作品がありません'),
+    ).toBeInTheDocument()
   })
 })

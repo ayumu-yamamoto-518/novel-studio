@@ -1,7 +1,7 @@
-import type { Work } from './types'
+import type { Work, WorkStatus } from './types'
 
-export async function fetchWorks(): Promise<Work[]> {
-  const res = await fetch('/api/works')
+export async function fetchWorks(status: WorkStatus): Promise<Work[]> {
+  const res = await fetch(`/api/works?status=${status}`)
   if (!res.ok) throw new Error(`作品の取得に失敗しました: ${res.status}`)
   return res.json()
 }
