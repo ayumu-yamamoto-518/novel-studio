@@ -2,7 +2,8 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { readDb, writeDb } from '@/mocks/db'
+import { readDb } from '@/mocks/db'
+import { seedDb } from '@/test/db'
 import { server } from '@/mocks/server'
 import { renderWithClient } from '@/test/render'
 import type { Work } from './types'
@@ -39,7 +40,7 @@ describe('WorkList', () => {
   })
 
   it('作品のタイトルを、新しい順に表示する', async () => {
-    writeDb({
+    seedDb({
       works: [makeWork('w1', '古い作品'), makeWork('w2', '新しい作品')],
     })
 
@@ -79,7 +80,7 @@ describe('WorkList のステータス別表示', () => {
   ]
 
   it('writing を渡すと、執筆中の作品だけを表示する', async () => {
-    writeDb({ works })
+    seedDb({ works })
 
     renderWithClient(<WorkList status="writing" />)
 
@@ -92,7 +93,7 @@ describe('WorkList のステータス別表示', () => {
   })
 
   it('completed を渡すと、完了の作品だけを表示する', async () => {
-    writeDb({ works })
+    seedDb({ works })
 
     renderWithClient(<WorkList status="completed" />)
 
@@ -105,7 +106,7 @@ describe('WorkList のステータス別表示', () => {
   })
 
   it('完了の作品がなければ、完了用の空の状態を表示する', async () => {
-    writeDb({ works: [makeWork('w1', '執筆中だけの作品', 'writing')] })
+    seedDb({ works: [makeWork('w1', '執筆中だけの作品', 'writing')] })
 
     renderWithClient(<WorkList status="completed" />)
 
@@ -118,7 +119,7 @@ describe('WorkList のステータス別表示', () => {
   })
 
   it('執筆中の作品がなければ、完了の作品があっても、執筆中用の空の状態を表示する', async () => {
-    writeDb({ works: [makeWork('w1', '完了だけの作品', 'completed')] })
+    seedDb({ works: [makeWork('w1', '完了だけの作品', 'completed')] })
 
     renderWithClient(<WorkList status="writing" />)
 
@@ -131,7 +132,7 @@ describe('WorkList のステータス別表示', () => {
 
 describe('WorkList のステータス変更', () => {
   it('ボタンの名前は、執筆中の一覧では「完了にする」、完了の一覧では「執筆中に戻す」になる', async () => {
-    writeDb({
+    seedDb({
       works: [makeWork('w1', 'A', 'writing'), makeWork('w2', 'B', 'completed')],
     })
 
@@ -148,7 +149,7 @@ describe('WorkList のステータス変更', () => {
   })
 
   it('「完了にする」を押すと、その作品だけが執筆中の一覧から消え、保存される', async () => {
-    writeDb({
+    seedDb({
       // タイトルをボタンの表示文言(「完了にする」)と同じにすると、text の検索が衝突する
       works: [makeWork('w1', '残る'), makeWork('w2', '移す作品')],
     })
@@ -170,7 +171,7 @@ describe('WorkList のステータス変更', () => {
   })
 
   it('完了の一覧で「執筆中に戻す」を押すと、その作品が完了の一覧から消え、保存される', async () => {
-    writeDb({
+    seedDb({
       works: [
         makeWork('w1', '残る', 'completed'),
         makeWork('w2', '戻す', 'completed'),
@@ -194,7 +195,7 @@ describe('WorkList のステータス変更', () => {
   })
 
   it('変更に失敗したら、エラーを表示し、作品は残る', async () => {
-    writeDb({ works: [makeWork('w1', '変わらない作品')] })
+    seedDb({ works: [makeWork('w1', '変わらない作品')] })
     server.use(
       http.patch(
         '/api/works/:id',
@@ -219,14 +220,14 @@ describe('WorkList のステータス変更', () => {
 
   it('既に消えた作品の変更は、エラーを表示し、取り直して一覧から消える', async () => {
     const stay = makeWork('w2', 'ずっと残る作品')
-    writeDb({ works: [makeWork('w1', '別の画面で消えた作品'), stay] })
+    seedDb({ works: [makeWork('w1', '別の画面で消えた作品'), stay] })
     const user = userEvent.setup()
     renderWithClient(<WorkList status="writing" />)
     const button = await screen.findByRole('button', {
       name: '「別の画面で消えた作品」を完了にする',
     })
     // 画面の外(別のタブなど)で、先に消えた状況を作る
-    writeDb({ works: [stay] })
+    seedDb({ works: [stay] })
 
     await user.click(button)
 
@@ -244,7 +245,7 @@ describe('WorkList のステータス変更', () => {
   it('ダブルクリックしても、エラーを出さずに移る', async () => {
     // 確かめるのは送信回数ではなく結果。同じ値の PATCH は2回送っても結果が同じ。
     // 別の作品を残す理由は、削除のテストと同じ(空になるとエラーが描画されない)
-    writeDb({
+    seedDb({
       works: [makeWork('w1', '二度押す作品'), makeWork('w2', 'ずっと残る作品')],
     })
     const user = userEvent.setup({ delay: null })
@@ -279,7 +280,7 @@ describe('WorkList の操作中の無効化', () => {
   }
 
   it('ステータスを変更している間は、すべての行の「変更」と「削除」が無効になる', async () => {
-    writeDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
+    seedDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
     const { promise, release } = gate()
     server.use(
       http.patch('/api/works/:id', async () => {
@@ -311,7 +312,7 @@ describe('WorkList の操作中の無効化', () => {
   })
 
   it('削除している間は、すべての行の「変更」と「削除」が無効になる', async () => {
-    writeDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
+    seedDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
     const { promise, release } = gate()
     server.use(
       http.delete('/api/works/:id', async () => {
@@ -342,7 +343,7 @@ describe('WorkList の操作中の無効化', () => {
 
 describe('WorkList の削除', () => {
   it('削除ボタンの名前にタイトルが入り、複数の作品が並んでも区別できる', async () => {
-    writeDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
+    seedDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
 
     renderWithClient(<WorkList status="writing" />)
 
@@ -355,7 +356,7 @@ describe('WorkList の削除', () => {
   })
 
   it('「削除」を押すと、その作品だけが一覧から消える', async () => {
-    writeDb({
+    seedDb({
       works: [
         makeWork('w1', '残る1'),
         makeWork('w2', '消す'),
@@ -378,7 +379,7 @@ describe('WorkList の削除', () => {
   })
 
   it('最後の1件を消すと、空の状態を表示する', async () => {
-    writeDb({ works: [makeWork('w1', '最後の作品')] })
+    seedDb({ works: [makeWork('w1', '最後の作品')] })
     const user = userEvent.setup()
     renderWithClient(<WorkList status="writing" />)
 
@@ -392,7 +393,7 @@ describe('WorkList の削除', () => {
   })
 
   it('削除に失敗したら、エラーを表示し、作品は残る', async () => {
-    writeDb({ works: [makeWork('w1', '消えない作品')] })
+    seedDb({ works: [makeWork('w1', '消えない作品')] })
     server.use(
       http.delete(
         '/api/works/:id',
@@ -416,14 +417,14 @@ describe('WorkList の削除', () => {
     // 別の作品を残しておく。一覧が空になると、エラーがあっても描画されず、
     // 「エラーを出していない」ことを確かめられなくなるため
     const stay = makeWork('w2', 'ずっと残る作品')
-    writeDb({ works: [makeWork('w1', '別の画面で消えた作品'), stay] })
+    seedDb({ works: [makeWork('w1', '別の画面で消えた作品'), stay] })
     const user = userEvent.setup()
     renderWithClient(<WorkList status="writing" />)
     const button = await screen.findByRole('button', {
       name: '「別の画面で消えた作品」を削除',
     })
     // 画面の外(別のタブなど)で、先に消えた状況を作る
-    writeDb({ works: [stay] })
+    seedDb({ works: [stay] })
 
     await user.click(button)
 
@@ -439,7 +440,7 @@ describe('WorkList の削除', () => {
   it('ダブルクリックしても、エラーを出さずに消える', async () => {
     // 確かめるのは送信回数ではなく結果。2回目は 404 になるが、成功として扱う
     // 別の作品を残す理由は、上の 404 のテストと同じ
-    writeDb({
+    seedDb({
       works: [makeWork('w1', '二度押す作品'), makeWork('w2', 'ずっと残る作品')],
     })
     const user = userEvent.setup({ delay: null })
