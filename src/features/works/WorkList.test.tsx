@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { readDb } from '@/mocks/db'
 import { seedDb } from '@/test/db'
 import { server } from '@/mocks/server'
@@ -25,13 +25,13 @@ function makeWork(
 
 describe('WorkList', () => {
   it('読み込み中は、その旨を表示する', () => {
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     expect(screen.getByText('読み込み中…')).toBeInTheDocument()
   })
 
   it('作品が0件なら、空の状態を表示する', async () => {
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     expect(
       await screen.findByText('執筆中の作品がありません'),
@@ -44,7 +44,7 @@ describe('WorkList', () => {
       works: [makeWork('w1', '古い作品'), makeWork('w2', '新しい作品')],
     })
 
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     const items = await screen.findAllByRole('listitem')
     expect(
@@ -60,7 +60,7 @@ describe('WorkList', () => {
       http.get('/api/works', () => new HttpResponse(null, { status: 500 })),
     )
 
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '作品を読み込めませんでした',
@@ -82,7 +82,7 @@ describe('WorkList のステータス別表示', () => {
   it('writing を渡すと、執筆中の作品だけを表示する', async () => {
     seedDb({ works })
 
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     const items = await screen.findAllByRole('listitem')
     expect(items.map((item) => item.textContent)).toEqual([
@@ -95,7 +95,7 @@ describe('WorkList のステータス別表示', () => {
   it('completed を渡すと、完了の作品だけを表示する', async () => {
     seedDb({ works })
 
-    renderWithClient(<WorkList status="completed" />)
+    renderWithClient(<WorkList status="completed" onOpen={() => {}} />)
 
     const items = await screen.findAllByRole('listitem')
     expect(items.map((item) => item.textContent)).toEqual([
@@ -108,7 +108,7 @@ describe('WorkList のステータス別表示', () => {
   it('完了の作品がなければ、完了用の空の状態を表示する', async () => {
     seedDb({ works: [makeWork('w1', '執筆中だけの作品', 'writing')] })
 
-    renderWithClient(<WorkList status="completed" />)
+    renderWithClient(<WorkList status="completed" onOpen={() => {}} />)
 
     expect(
       await screen.findByText('完了した作品がありません'),
@@ -121,7 +121,7 @@ describe('WorkList のステータス別表示', () => {
   it('執筆中の作品がなければ、完了の作品があっても、執筆中用の空の状態を表示する', async () => {
     seedDb({ works: [makeWork('w1', '完了だけの作品', 'completed')] })
 
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     expect(
       await screen.findByText('執筆中の作品がありません'),
@@ -136,13 +136,15 @@ describe('WorkList のステータス変更', () => {
       works: [makeWork('w1', 'A', 'writing'), makeWork('w2', 'B', 'completed')],
     })
 
-    const writing = renderWithClient(<WorkList status="writing" />)
+    const writing = renderWithClient(
+      <WorkList status="writing" onOpen={() => {}} />,
+    )
     expect(
       await screen.findByRole('button', { name: '「A」を完了にする' }),
     ).toBeInTheDocument()
     writing.unmount()
 
-    renderWithClient(<WorkList status="completed" />)
+    renderWithClient(<WorkList status="completed" onOpen={() => {}} />)
     expect(
       await screen.findByRole('button', { name: '「B」を執筆中に戻す' }),
     ).toBeInTheDocument()
@@ -154,7 +156,7 @@ describe('WorkList のステータス変更', () => {
       works: [makeWork('w1', '残る'), makeWork('w2', '移す作品')],
     })
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「移す作品」を完了にする' }),
@@ -178,7 +180,7 @@ describe('WorkList のステータス変更', () => {
       ],
     })
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="completed" />)
+    renderWithClient(<WorkList status="completed" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「戻す」を執筆中に戻す' }),
@@ -203,7 +205,7 @@ describe('WorkList のステータス変更', () => {
       ),
     )
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', {
@@ -222,7 +224,7 @@ describe('WorkList のステータス変更', () => {
     const stay = makeWork('w2', 'ずっと残る作品')
     seedDb({ works: [makeWork('w1', '別の画面で消えた作品'), stay] })
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
     const button = await screen.findByRole('button', {
       name: '「別の画面で消えた作品」を完了にする',
     })
@@ -249,7 +251,7 @@ describe('WorkList のステータス変更', () => {
       works: [makeWork('w1', '二度押す作品'), makeWork('w2', 'ずっと残る作品')],
     })
     const user = userEvent.setup({ delay: null })
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.dblClick(
       await screen.findByRole('button', {
@@ -289,7 +291,7 @@ describe('WorkList の操作中の無効化', () => {
       }),
     )
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「A」を完了にする' }),
@@ -321,7 +323,7 @@ describe('WorkList の操作中の無効化', () => {
       }),
     )
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.click(await screen.findByRole('button', { name: '「A」を削除' }))
 
@@ -341,11 +343,53 @@ describe('WorkList の操作中の無効化', () => {
   })
 })
 
+describe('WorkList の作品を開く', () => {
+  it('作品名を押すと、その作品の id で onOpen が呼ばれる(対象は中間)', async () => {
+    seedDb({
+      works: [
+        makeWork('w1', '最初の作品'),
+        makeWork('w2', '中間の作品'),
+        makeWork('w3', '最後の作品'),
+      ],
+    })
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    renderWithClient(<WorkList status="writing" onOpen={onOpen} />)
+
+    await user.click(await screen.findByRole('button', { name: '中間の作品' }))
+
+    expect(onOpen).toHaveBeenCalledTimes(1)
+    expect(onOpen).toHaveBeenCalledWith('w2')
+  })
+
+  it('ステータスの変更や削除のボタンを押しても、onOpen は呼ばれない', async () => {
+    seedDb({
+      works: [makeWork('w1', '作品A'), makeWork('w2', '作品B')],
+    })
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    renderWithClient(<WorkList status="writing" onOpen={onOpen} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '「作品A」を完了にする' }),
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('作品A')).not.toBeInTheDocument(),
+    )
+    await user.click(screen.getByRole('button', { name: '「作品B」を削除' }))
+    await waitFor(() =>
+      expect(screen.queryByText('作品B')).not.toBeInTheDocument(),
+    )
+
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+})
+
 describe('WorkList の削除', () => {
   it('削除ボタンの名前にタイトルが入り、複数の作品が並んでも区別できる', async () => {
     seedDb({ works: [makeWork('w1', 'A'), makeWork('w2', 'B')] })
 
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     expect(
       await screen.findByRole('button', { name: '「A」を削除' }),
@@ -364,7 +408,7 @@ describe('WorkList の削除', () => {
       ],
     })
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「消す」を削除' }),
@@ -381,7 +425,7 @@ describe('WorkList の削除', () => {
   it('最後の1件を消すと、空の状態を表示する', async () => {
     seedDb({ works: [makeWork('w1', '最後の作品')] })
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「最後の作品」を削除' }),
@@ -401,7 +445,7 @@ describe('WorkList の削除', () => {
       ),
     )
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「消えない作品」を削除' }),
@@ -419,7 +463,7 @@ describe('WorkList の削除', () => {
     const stay = makeWork('w2', 'ずっと残る作品')
     seedDb({ works: [makeWork('w1', '別の画面で消えた作品'), stay] })
     const user = userEvent.setup()
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
     const button = await screen.findByRole('button', {
       name: '「別の画面で消えた作品」を削除',
     })
@@ -444,7 +488,7 @@ describe('WorkList の削除', () => {
       works: [makeWork('w1', '二度押す作品'), makeWork('w2', 'ずっと残る作品')],
     })
     const user = userEvent.setup({ delay: null })
-    renderWithClient(<WorkList status="writing" />)
+    renderWithClient(<WorkList status="writing" onOpen={() => {}} />)
 
     await user.dblClick(
       await screen.findByRole('button', { name: '「二度押す作品」を削除' }),
