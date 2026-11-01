@@ -1,11 +1,12 @@
+import type { Chapter } from '@/features/chapters/types'
 import type { Work } from '@/features/works/types'
 
-export type Db = { works: Work[] }
+export type Db = { works: Work[]; chapters: Chapter[] }
 
 const STORAGE_KEY = 'novel-studio:db'
 
 function emptyDb(): Db {
-  return { works: [] }
+  return { works: [], chapters: [] }
 }
 
 function isWork(value: unknown): value is Work {
@@ -25,9 +26,29 @@ function isWork(value: unknown): value is Work {
   )
 }
 
+function isChapter(value: unknown): value is Chapter {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof value.id === 'string' &&
+    'workId' in value &&
+    typeof value.workId === 'string' &&
+    'title' in value &&
+    typeof value.title === 'string' &&
+    'body' in value &&
+    typeof value.body === 'string' &&
+    'createdAt' in value &&
+    typeof value.createdAt === 'string' &&
+    'updatedAt' in value &&
+    typeof value.updatedAt === 'string'
+  )
+}
+
 // キャッシュを持たず、リクエストごとに localStorage を読み書きする。
 // 壊れたデータで画面を落とさないよう、JSON が壊れていれば空の DB にし、
-// 作品の形をしていない要素は捨てて、正しい作品だけを返す。
+// 作品・章の形をしていない要素は捨てて、正しいものだけを返す。
+// 章を足す前に保存された {"works":[...]} だけのデータは、章を空として読む。
 export function readDb(): Db {
   const raw = localStorage.getItem(STORAGE_KEY)
   if (raw === null) return emptyDb()
@@ -40,7 +61,11 @@ export function readDb(): Db {
       'works' in parsed &&
       Array.isArray(parsed.works)
     ) {
-      return { works: parsed.works.filter(isWork) }
+      const chapters =
+        'chapters' in parsed && Array.isArray(parsed.chapters)
+          ? parsed.chapters.filter(isChapter)
+          : []
+      return { works: parsed.works.filter(isWork), chapters }
     }
   } catch {
     // 壊れた JSON は下の空の DB にする

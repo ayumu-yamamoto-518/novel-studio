@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { readDb, writeDb } from '@/mocks/db'
+import type { Chapter } from '@/features/chapters/types'
+import { readDb } from '@/mocks/db'
+import { seedDb } from '@/test/db'
 import type { Work } from './types'
 
 // setup.ts の server は mocks/handlers.ts の handlers で起動している。
@@ -31,7 +33,7 @@ describe('GET /api/works', () => {
   it('保存済みの作品を、新しい順(作成順の逆)で返す', async () => {
     const first = makeWork('w1', '最初の作品')
     const second = makeWork('w2', '次の作品')
-    writeDb({ works: [first, second] })
+    seedDb({ works: [first, second] })
 
     const res = await fetch('/api/works')
 
@@ -48,6 +50,36 @@ describe('GET /api/works', () => {
   })
 })
 
+describe('GET /api/works/:id', () => {
+  it('作品を 200 で返す', async () => {
+    const target = makeWork('w1', '対象の作品')
+    // 対象を先頭に置くと、id を見ずに先頭を返す実装でも通ってしまう
+    seedDb({ works: [makeWork('w2', '他の作品'), target] })
+
+    const res = await fetch('/api/works/w1')
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(target)
+  })
+
+  it('存在しない id は 404 とメッセージを返す', async () => {
+    seedDb({ works: [makeWork('w1', '残る作品')] })
+
+    const res = await fetch('/api/works/unknown')
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ message: '作品が見つかりません' })
+  })
+
+  it('保存先が壊れた JSON でも、404 を返す', async () => {
+    localStorage.setItem('novel-studio:db', '{broken')
+
+    const res = await fetch('/api/works/w1')
+
+    expect(res.status).toBe(404)
+  })
+})
+
 describe('GET /api/works?status=', () => {
   const writing1 = makeWork('w1', '執筆中1', 'writing')
   const completed1 = makeWork('w2', '完了1', 'completed')
@@ -55,7 +87,7 @@ describe('GET /api/works?status=', () => {
   const completed2 = makeWork('w4', '完了2', 'completed')
 
   it('writing を指定すると、執筆中の作品だけを新しい順で返す', async () => {
-    writeDb({ works: [writing1, completed1, writing2, completed2] })
+    seedDb({ works: [writing1, completed1, writing2, completed2] })
 
     const res = await fetch('/api/works?status=writing')
 
@@ -64,7 +96,7 @@ describe('GET /api/works?status=', () => {
   })
 
   it('completed を指定すると、完了の作品だけを新しい順で返す', async () => {
-    writeDb({ works: [writing1, completed1, writing2, completed2] })
+    seedDb({ works: [writing1, completed1, writing2, completed2] })
 
     const res = await fetch('/api/works?status=completed')
 
@@ -72,7 +104,7 @@ describe('GET /api/works?status=', () => {
   })
 
   it('指定した状態の作品がなければ、空の配列を返す', async () => {
-    writeDb({ works: [writing1] })
+    seedDb({ works: [writing1] })
 
     const res = await fetch('/api/works?status=completed')
 
@@ -81,7 +113,7 @@ describe('GET /api/works?status=', () => {
   })
 
   it('status を省略すると、全件を新しい順で返す', async () => {
-    writeDb({ works: [writing1, completed1] })
+    seedDb({ works: [writing1, completed1] })
 
     const res = await fetch('/api/works')
 
@@ -91,7 +123,7 @@ describe('GET /api/works?status=', () => {
   it.each(['archived', '', 'WRITING'])(
     '不正な status(%j)は、400 とメッセージを返す',
     async (status) => {
-      writeDb({ works: [writing1] })
+      seedDb({ works: [writing1] })
 
       const res = await fetch(`/api/works?status=${status}`)
 
@@ -195,7 +227,7 @@ describe('POST /api/works', () => {
 describe('DELETE /api/works/:id', () => {
   it('204 を返し、作品が一覧と localStorage から消える', async () => {
     const target = makeWork('w1', '消す作品')
-    writeDb({ works: [target] })
+    seedDb({ works: [target] })
 
     const res = await fetch('/api/works/w1', { method: 'DELETE' })
 
@@ -208,7 +240,7 @@ describe('DELETE /api/works/:id', () => {
     const keep1 = makeWork('w1', '残る作品1')
     const target = makeWork('w2', '消す作品')
     const keep2 = makeWork('w3', '残る作品2')
-    writeDb({ works: [keep1, target, keep2] })
+    seedDb({ works: [keep1, target, keep2] })
 
     await fetch('/api/works/w2', { method: 'DELETE' })
 
@@ -217,7 +249,7 @@ describe('DELETE /api/works/:id', () => {
 
   it('存在しない id は 404 とメッセージを返し、何も変えない', async () => {
     const existing = makeWork('w1', '残る作品')
-    writeDb({ works: [existing] })
+    seedDb({ works: [existing] })
 
     const res = await fetch('/api/works/unknown', { method: 'DELETE' })
 
@@ -232,6 +264,79 @@ describe('DELETE /api/works/:id', () => {
     const res = await fetch('/api/works/w1', { method: 'DELETE' })
 
     expect(res.status).toBe(404)
+  })
+})
+
+describe('DELETE /api/works/:id と章のカスケード', () => {
+  function makeChapter(id: string, workId: string): Chapter {
+    return {
+      id,
+      workId,
+      title: `章${id}`,
+      body: '',
+      createdAt: '2026-11-01T00:00:00.000Z',
+      updatedAt: '2026-11-01T00:00:00.000Z',
+    }
+  }
+
+  it('作品を消すと、その作品の章もすべて消える', async () => {
+    seedDb({
+      works: [makeWork('w1', '消す作品')],
+      chapters: [makeChapter('c1', 'w1'), makeChapter('c2', 'w1')],
+    })
+
+    const res = await fetch('/api/works/w1', { method: 'DELETE' })
+
+    expect(res.status).toBe(204)
+    expect(readDb().works).toEqual([])
+    expect(readDb().chapters).toEqual([])
+  })
+
+  it('他の作品の章は残る(消す作品の章の前後にあっても)', async () => {
+    const keep1 = makeChapter('c1', 'w2')
+    const keep2 = makeChapter('c4', 'w2')
+    const keepWork = makeWork('w2', '残る作品')
+    seedDb({
+      works: [makeWork('w1', '消す作品'), keepWork],
+      chapters: [
+        keep1,
+        makeChapter('c2', 'w1'),
+        makeChapter('c3', 'w1'),
+        keep2,
+      ],
+    })
+
+    await fetch('/api/works/w1', { method: 'DELETE' })
+
+    expect(readDb().works).toEqual([keepWork])
+    expect(readDb().chapters).toEqual([keep1, keep2])
+    expect(await (await fetch('/api/works/w2/chapters')).json()).toEqual([
+      keep1,
+      keep2,
+    ])
+  })
+
+  it('章のない作品の削除は、従来どおり、他の作品の章に触れない', async () => {
+    const other = makeChapter('c1', 'w2')
+    seedDb({
+      works: [makeWork('w1', '章のない作品'), makeWork('w2', '残る作品')],
+      chapters: [other],
+    })
+
+    const res = await fetch('/api/works/w1', { method: 'DELETE' })
+
+    expect(res.status).toBe(204)
+    expect(readDb().chapters).toEqual([other])
+  })
+
+  it('存在しない作品の削除(404)では、章を消さない', async () => {
+    const chapter = makeChapter('c1', 'w1')
+    seedDb({ works: [makeWork('w1', '残る作品')], chapters: [chapter] })
+
+    const res = await fetch('/api/works/unknown', { method: 'DELETE' })
+
+    expect(res.status).toBe(404)
+    expect(readDb().chapters).toEqual([chapter])
   })
 })
 
@@ -253,7 +358,7 @@ describe('PATCH /api/works/:id', () => {
   }
 
   it('ステータスを変えて 200 で更新後の作品を返し、updatedAt だけが進む', async () => {
-    writeDb({ works: [target] })
+    seedDb({ works: [target] })
 
     const res = await patchWork('w1', { status: 'completed' })
 
@@ -270,7 +375,7 @@ describe('PATCH /api/works/:id', () => {
   })
 
   it('変更が localStorage に残り、status での絞り込みに反映される', async () => {
-    writeDb({ works: [target] })
+    seedDb({ works: [target] })
 
     await patchWork('w1', { status: 'completed' })
 
@@ -284,7 +389,7 @@ describe('PATCH /api/works/:id', () => {
   })
 
   it('完了から執筆中に戻せる', async () => {
-    writeDb({ works: [{ ...target, status: 'completed' }] })
+    seedDb({ works: [{ ...target, status: 'completed' }] })
 
     const res = await patchWork('w1', { status: 'writing' })
 
@@ -294,7 +399,7 @@ describe('PATCH /api/works/:id', () => {
 
   it('指定した作品だけを変え、他の作品は変えない', async () => {
     const other = makeWork('w2', '他の作品')
-    writeDb({ works: [target, other] })
+    seedDb({ works: [target, other] })
 
     await patchWork('w1', { status: 'completed' })
 
@@ -302,7 +407,7 @@ describe('PATCH /api/works/:id', () => {
   })
 
   it('存在しない id は 404 とメッセージを返し、何も変えない', async () => {
-    writeDb({ works: [target] })
+    seedDb({ works: [target] })
 
     const res = await patchWork('unknown', { status: 'completed' })
 
@@ -318,7 +423,7 @@ describe('PATCH /api/works/:id', () => {
     ['JSON ではない本文', 'not json'],
     ['JSON が null', 'null'],
   ])('%sなら、400 を返し、何も変えない', async (_, body) => {
-    writeDb({ works: [target] })
+    seedDb({ works: [target] })
 
     const res = await patchWork('w1', body)
 

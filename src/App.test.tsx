@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { writeDb } from '@/mocks/db'
+import { seedDb } from '@/test/db'
 import { renderWithClient } from '@/test/render'
 import App from './App'
 
@@ -40,7 +40,7 @@ describe('App', () => {
 
   it('削除した作品は、画面を開き直しても消えたままである', async () => {
     // 作成の経路を通さず保存先に直接用意し、削除の永続化だけを確かめる
-    writeDb({
+    seedDb({
       works: [
         {
           id: 'w1',
@@ -78,7 +78,7 @@ describe('App', () => {
 
   it('完了にした作品は、画面を開き直しても「完了」タブにある', async () => {
     // 作成の経路を通さず保存先に直接用意し、ステータス変更の永続化だけを確かめる
-    writeDb({
+    seedDb({
       works: [
         {
           id: 'w1',

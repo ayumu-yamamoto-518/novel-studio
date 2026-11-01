@@ -44,9 +44,9 @@ src/
   components/ui/    shadcn/ui の部品
   features/         機能単位のコード(src/features/<機能名>/)
     works/          作品(型・API ハンドラ・一覧・作成フォーム・削除・ステータスのタブ)
-    chapters/       章(型のみ。画面は未実装)
-  lib/              共通ユーティリティ(QueryClient など)
-  mocks/            MSW のハンドラ(ブラウザ用・テスト用)と、保存先の db(localStorage)
+    chapters/       章(型・API ハンドラ。画面は未実装)
+  lib/              共通ユーティリティ(QueryClient、タイトルの検証など)
+  mocks/            MSW のハンドラ(ブラウザ用・テスト用)と、保存先の db(localStorage。作品と章)
   test/             テストの共通設定
 docs/ai-log.md      AIログ
 ```

@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { http, HttpResponse } from 'msw'
-import { writeDb } from '@/mocks/db'
+import { seedDb } from '@/test/db'
 import { server } from '@/mocks/server'
 import { renderWithClient } from '@/test/render'
 import type { Work } from './types'
@@ -34,7 +34,7 @@ describe('WorkTabs', () => {
   })
 
   it('初期は、執筆中の作品だけを表示する', async () => {
-    writeDb({
+    seedDb({
       works: [
         makeWork('w1', '執筆中の作品', 'writing'),
         makeWork('w2', '完了した作品', 'completed'),
@@ -48,7 +48,7 @@ describe('WorkTabs', () => {
   })
 
   it('「完了」を押すと、完了の作品だけを表示する', async () => {
-    writeDb({
+    seedDb({
       works: [
         makeWork('w1', '執筆中の作品', 'writing'),
         makeWork('w2', '完了した作品', 'completed'),
@@ -68,7 +68,7 @@ describe('WorkTabs', () => {
   })
 
   it('「執筆中」に戻すと、執筆中の作品だけを表示する', async () => {
-    writeDb({
+    seedDb({
       works: [
         makeWork('w1', '執筆中の作品', 'writing'),
         makeWork('w2', '完了した作品', 'completed'),
@@ -86,7 +86,7 @@ describe('WorkTabs', () => {
   })
 
   it('作品を完了にしてから「完了」タブを開くと、そこに移っている', async () => {
-    writeDb({ works: [makeWork('w1', '移る作品', 'writing')] })
+    seedDb({ works: [makeWork('w1', '移る作品', 'writing')] })
     const user = userEvent.setup()
     renderWithClient(<WorkTabs />)
 
@@ -105,7 +105,7 @@ describe('WorkTabs', () => {
   })
 
   it('変更の失敗によるエラー表示は、別のタブへ移っても残らない', async () => {
-    writeDb({
+    seedDb({
       works: [
         makeWork('w1', '失敗する作品', 'writing'),
         makeWork('w2', '完了した作品', 'completed'),
