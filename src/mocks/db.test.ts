@@ -39,6 +39,25 @@ describe('db', () => {
     expect(readDb()).toEqual({ works: [] })
   })
 
+  it('作品の形をしていない要素は捨て、正しい作品だけを返す', () => {
+    const broken = [
+      null,
+      1,
+      'x',
+      {},
+      { ...work, id: 1 },
+      { ...work, title: {} },
+      { ...work, status: 'archived' },
+      { ...work, createdAt: undefined },
+    ]
+    localStorage.setItem(
+      'novel-studio:db',
+      JSON.stringify({ works: [...broken, work] }),
+    )
+
+    expect(readDb()).toEqual({ works: [work] })
+  })
+
   it('テストごとに localStorage が空に戻る(1つ目のテストの書き込みが残らない)', () => {
     expect(localStorage.getItem('novel-studio:db')).toBeNull()
   })
