@@ -94,6 +94,7 @@ describe('db', () => {
       { ...chapter, workId: undefined },
       { ...chapter, title: {} },
       { ...chapter, body: 1 },
+      { ...chapter, createdAt: undefined },
       { ...chapter, updatedAt: undefined },
     ]
     localStorage.setItem(

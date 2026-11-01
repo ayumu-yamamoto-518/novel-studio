@@ -203,6 +203,18 @@ describe('POST /api/works/:workId/chapters', () => {
     expect(res.status).toBe(400)
   })
 
+  // 章を足す前にブラウザへ保存された {"works":[...]} だけのデータ
+  it('chapters が無い古い保存データでも、作品を失わずに章を作れる', async () => {
+    const work = makeWork('w1', '古いデータの作品')
+    localStorage.setItem('novel-studio:db', JSON.stringify({ works: [work] }))
+
+    const res = await postChapter('w1', { title: '第一章' })
+
+    expect(res.status).toBe(201)
+    expect(readDb().works).toEqual([work])
+    expect(readDb().chapters).toEqual([await res.json()])
+  })
+
   it('同時に2件作っても、両方が残り、id は異なる', async () => {
     seedDb({ works: [makeWork('w1', '作品1')] })
 
