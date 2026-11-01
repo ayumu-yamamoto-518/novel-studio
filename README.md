@@ -21,7 +21,7 @@
 
 ## どう作ったか
 
-実装の大部分は Claude Code(Superpowers プラグイン)に任せ、方針の判断(選択肢の決定)、コマンドの許可、ブラウザでの確認、PRのレビューとマージは人が行いました。機能より先に、AIの出力を自動で検証する仕組み(ハーネス)を整え、その上で、毎回同じ手順(ループ)で機能を足しています。
+実装の大部分は Claude Code に任せ、方針の判断(選択肢の決定)、コマンドの許可、ブラウザでの確認、PRのレビューとマージは人が行いました。機能より先に、AIの出力を自動で検証する仕組み(ハーネス)を整え、その上で、毎回同じ手順(ループ)で機能を足しています。
 
 ## 品質担保の仕組み
 
@@ -34,14 +34,15 @@ AIが書いたものを、人の目だけに頼らず検証するための土台
 - フック([.claude/hooks/format-lint.sh](.claude/hooks/format-lint.sh)): AI がファイルを編集・作成(Edit / Write)するたびに、ts・tsx・js・jsx・json・css・md・yml・html を Prettier で整形し、ts・tsx・js・jsx は ESLint も実行する。違反があれば AI に差し戻す
 - 権限([.claude/settings.json](.claude/settings.json)): 確認なしで実行してよいコマンドを、`npm run` のスクリプトと、読み取り系の git コマンド(status・diff・log・show・branch)に絞る。AI の `.env` の読み取りと、`git diff --no-index`・`--output` の指定は拒否する(Bash 経由の読み取りまでは止められない。限界は ai-log に記録)
 - CI([.github/workflows/ci.yml](.github/workflows/ci.yml)): PR ごとと main への push で `npm run check` を実行する
+- Superpowers プラグイン(6.4.2)は有効化したが、開発の手順は CLAUDE.md と Plan モードで運用した
 
 ### ループ
 
 1つの PR を、次の順で進めています。
 
-1. 計画(writing-plans)
+1. 計画: Plan モードで、読み取り専用でコードを調べ、計画を出させる。人が確認・承認してから着手する
 2. テスト先行: 先にテストを書き、失敗(赤)を確かめる
-3. 実装(executing-plans)
+3. 実装: 計画どおりに、1コミット=1つの振る舞いで進める
 4. `npm run check`
 5. ミューテーション: 実装をわざと壊し、テストが赤になることを確かめる
 6. 別のAIが、読み取り専用でブランチ全体をレビューする
