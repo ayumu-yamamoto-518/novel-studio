@@ -624,3 +624,114 @@ describe('ChapterEditor の再取得(別のタブから戻ったとき)', () => 
     expect(screen.getByLabelText('本文')).toHaveValue('こんにちは\n世界！')
   })
 })
+
+describe('ChapterEditor の保存のあとの書き足し', () => {
+  // 1 回目の保存だけを、応答を保留にできる偽のハンドラにする(2 回目は本物のハンドラに任せる)。
+  // 本物と同じく、保存先を更新して、更新後の章を返す
+  function holdFirstSave() {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.patch(
+        '/api/chapters/:id',
+        async ({ params, request }) => {
+          const sent: unknown = await request.json()
+          if (
+            typeof sent !== 'object' ||
+            sent === null ||
+            !('body' in sent) ||
+            typeof sent.body !== 'string'
+          ) {
+            throw new Error('本文が送られていない(テストの準備の誤り)')
+          }
+          const { body } = sent
+          await gate
+          const db = readDb()
+          const current = db.chapters.find(
+            (chapter) => chapter.id === params.id,
+          )
+          if (!current) throw new Error('章が無い(テストの準備の誤り)')
+          const updated = {
+            ...current,
+            body,
+            updatedAt: new Date().toISOString(),
+          }
+          seedDb({
+            works: db.works,
+            chapters: db.chapters.map((chapter) =>
+              chapter.id === updated.id ? updated : chapter,
+            ),
+          })
+          return HttpResponse.json(updated)
+        },
+        { once: true },
+      ),
+    )
+    return release
+  }
+
+  it('保存の応答を待つ間に書き足しても、書き足した分は消えず、もう一度保存すると保存される', async () => {
+    seedChapters()
+    const release = holdFirstSave()
+    const user = userEvent.setup()
+    renderEditor('c2')
+    const textarea = await screen.findByLabelText('本文')
+    await user.type(textarea, 'A')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '保存' })).toBeDisabled(),
+    )
+
+    // 保存の応答を待っている間に、書き足す
+    await user.type(textarea, 'B')
+    release()
+
+    // 応答が返っても、書き足した「B」は下書きに残り、まだ未保存
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '保存' })).toBeEnabled(),
+    )
+    expect(screen.getByLabelText('本文')).toHaveValue('こんにちは\n世界AB')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '未保存の変更があります',
+    )
+    // 1 回目に保存されたのは、クリックしたときの本文(「B」は含まない)
+    expect(readDb().chapters[1].body).toBe('こんにちは\n世界A')
+
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('保存済み'),
+    )
+    expect(screen.getByLabelText('本文')).toHaveValue('こんにちは\n世界AB')
+    expect(readDb().chapters[1].body).toBe('こんにちは\n世界AB')
+  })
+
+  it('保存が済んだあとに書き足すと「未保存」になり、もう一度保存すると書き足した本文が保存される', async () => {
+    seedChapters()
+    const user = userEvent.setup()
+    renderEditor('c2')
+    const textarea = await screen.findByLabelText('本文')
+    await user.type(textarea, 'A')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('保存済み'),
+    )
+
+    await user.type(textarea, 'B')
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '未保存の変更があります',
+    )
+    expect(screen.getByRole('button', { name: '保存' })).toBeEnabled()
+    expect(readDb().chapters[1].body).toBe('こんにちは\n世界A')
+
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('保存済み'),
+    )
+    expect(readDb().chapters[1].body).toBe('こんにちは\n世界AB')
+  })
+})
