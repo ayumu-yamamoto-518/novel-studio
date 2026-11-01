@@ -33,6 +33,17 @@ export const worksHandlers = [
     )
   }),
 
+  http.get('/api/works/:id', ({ params }) => {
+    const work = readDb().works.find((work) => work.id === params.id)
+    if (!work) {
+      return HttpResponse.json(
+        { message: '作品が見つかりません' },
+        { status: 404 },
+      )
+    }
+    return HttpResponse.json(work)
+  }),
+
   http.post('/api/works', async ({ request }) => {
     const body = await readJson(request)
     if (

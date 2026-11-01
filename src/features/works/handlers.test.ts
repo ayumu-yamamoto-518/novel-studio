@@ -49,6 +49,36 @@ describe('GET /api/works', () => {
   })
 })
 
+describe('GET /api/works/:id', () => {
+  it('作品を 200 で返す', async () => {
+    const target = makeWork('w1', '対象の作品')
+    // 対象を先頭に置くと、id を見ずに先頭を返す実装でも通ってしまう
+    seedDb({ works: [makeWork('w2', '他の作品'), target] })
+
+    const res = await fetch('/api/works/w1')
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual(target)
+  })
+
+  it('存在しない id は 404 とメッセージを返す', async () => {
+    seedDb({ works: [makeWork('w1', '残る作品')] })
+
+    const res = await fetch('/api/works/unknown')
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ message: '作品が見つかりません' })
+  })
+
+  it('保存先が壊れた JSON でも、404 を返す', async () => {
+    localStorage.setItem('novel-studio:db', '{broken')
+
+    const res = await fetch('/api/works/w1')
+
+    expect(res.status).toBe(404)
+  })
+})
+
 describe('GET /api/works?status=', () => {
   const writing1 = makeWork('w1', '執筆中1', 'writing')
   const completed1 = makeWork('w2', '完了1', 'completed')
