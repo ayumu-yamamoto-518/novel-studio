@@ -11,7 +11,7 @@ import { ChapterForm } from './ChapterForm'
 import { ChapterList } from './ChapterList'
 
 const work: Work = {
-  id: 'w1',
+  id: 'w2',
   title: '作品1',
   status: 'writing',
   createdAt: '2026-11-01T00:00:00.000Z',
@@ -21,8 +21,8 @@ const work: Work = {
 function renderFormAndList() {
   return renderWithClient(
     <>
-      <ChapterForm workId="w1" />
-      <ChapterList workId="w1" />
+      <ChapterForm workId="w2" />
+      <ChapterList workId="w2" />
     </>,
   )
 }
@@ -39,7 +39,7 @@ describe('ChapterForm', () => {
     expect(await screen.findByRole('listitem')).toHaveTextContent('第一章')
     expect(screen.getByLabelText('章のタイトル')).toHaveValue('')
     expect(screen.queryByText('章がありません')).not.toBeInTheDocument()
-    expect(readDb().chapters.map((chapter) => chapter.workId)).toEqual(['w1'])
+    expect(readDb().chapters.map((chapter) => chapter.workId)).toEqual(['w2'])
   })
 
   it('前後の空白を除いたタイトルで保存する', async () => {

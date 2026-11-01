@@ -47,22 +47,25 @@ describe('ChapterList', () => {
     expect(screen.queryByRole('list')).not.toBeInTheDocument()
   })
 
-  it('その作品の章だけを、作成順で表示する', async () => {
+  it('その作品の章だけを、サーバーが返した順(作成順)で表示する', async () => {
+    // 開く作品は w2(固定の w1 を取っていても通ってしまわないよう、先頭の作品にしない)。
+    // タイトルの順(「第二章」が先)と保存順が食い違うようにして、
+    // タイトルや id で並べ替える実装では通らないようにする
     seedDb({
       works: [makeWork('w1', '作品1'), makeWork('w2', '作品2')],
       chapters: [
-        makeChapter('c1', 'w1', '第一章'),
-        makeChapter('c2', 'w2', '別の作品の章'),
-        makeChapter('c3', 'w1', '第二章'),
+        makeChapter('c9', 'w2', '第二章'),
+        makeChapter('c2', 'w1', '別の作品の章'),
+        makeChapter('c1', 'w2', '第一章'),
       ],
     })
 
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w2" />)
 
     const items = await screen.findAllByRole('listitem')
     expect(items.map((item) => item.textContent)).toEqual([
-      expect.stringContaining('第一章'),
       expect.stringContaining('第二章'),
+      expect.stringContaining('第一章'),
     ])
     expect(screen.queryByText('別の作品の章')).not.toBeInTheDocument()
     expect(screen.queryByText('章がありません')).not.toBeInTheDocument()
@@ -192,8 +195,9 @@ describe('ChapterList の削除', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('ダブルクリックしても、エラーを出さずに消える', async () => {
-    // 確かめるのは送信回数ではなく結果。2回目は 404 になるが、成功として扱う。
+  it('素早く2回押しても、2回目の 404 でエラーを出さずに消える(削除が冪等であること)', async () => {
+    // これは disabled のガードではなく、削除の冪等性(404 を成功として扱う)の確認。
+    // disabled は、下の「削除している間は〜無効になる」のテストが確かめる。
     // 別の章を残す理由は、上の 404 のテストと同じ
     seedDb({
       works: [work],

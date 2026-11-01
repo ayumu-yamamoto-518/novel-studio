@@ -159,8 +159,6 @@ describe('WorkTabs', () => {
     ).not.toBeInTheDocument()
   })
 
-  // 他のテストの順序に頼らず、この1つで完結させる。
-  // render の Provider を外すと、選択が次の render に残るので失敗する
   it('作品名を押すと、その作品が選択される(対象は中間。「完了」タブの作品でも同じ)', async () => {
     seedDb({
       works: [
@@ -184,6 +182,8 @@ describe('WorkTabs', () => {
     expect(screen.getByText('選択中: w2')).toBeInTheDocument()
   })
 
+  // 他のテストの順序に頼らず、この1つで完結させる。
+  // render の Provider を外すと、選択が次の render に残るので失敗する
   it('選択したタブは、描画し直すと引き継がれない(render ごとに新しい store)', async () => {
     const user = userEvent.setup()
     const first = renderWithClient(<WorkTabs />)

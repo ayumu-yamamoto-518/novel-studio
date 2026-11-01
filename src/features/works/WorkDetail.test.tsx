@@ -128,20 +128,23 @@ describe('WorkDetail', () => {
       expect(onBack).toHaveBeenCalledTimes(1)
     })
 
-    it('エラー(500)のときは、「見つかりません」ではなく、読み込み失敗を表示する', async () => {
+    it('エラー(500)のときは、「見つかりません」ではなく、読み込み失敗と戻るボタンを表示する', async () => {
       server.use(
         http.get(
           '/api/works/:id',
           () => new HttpResponse(null, { status: 500 }),
         ),
       )
-
-      renderWithClient(<WorkDetail workId="w1" onBack={() => {}} />)
+      const onBack = vi.fn()
+      const user = userEvent.setup()
+      renderWithClient(<WorkDetail workId="w1" onBack={onBack} />)
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         '作品を読み込めませんでした',
       )
       expect(screen.queryByText('作品が見つかりません')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: '作品一覧に戻る' }))
+      expect(onBack).toHaveBeenCalledTimes(1)
     })
   })
 })
