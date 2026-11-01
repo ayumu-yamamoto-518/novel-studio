@@ -1,4 +1,5 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
+import { focusManager } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
@@ -495,5 +496,109 @@ describe('ChapterEditor の戻る', () => {
     } finally {
       confirm.mockRestore()
     }
+  })
+})
+
+describe('ChapterEditor の再取得(別のタブから戻ったとき)', () => {
+  // ブラウザのタブに戻ると、TanStack Query は(古い扱いの)データを取り直す。
+  // 編集中に本文が差し替わったり、取得の失敗でエディタが消えたりしてはいけない
+  function returnToTab() {
+    act(() => {
+      focusManager.setFocused(false)
+      focusManager.setFocused(true)
+    })
+  }
+  // 取り直しが起きるなら、その結果が画面に出るまで待つ
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 100))
+
+  function countGets() {
+    const urls: string[] = []
+    const onStart = ({ request }: { request: Request }) => {
+      if (request.method === 'GET') urls.push(new URL(request.url).pathname)
+    }
+    server.events.on('request:start', onStart)
+    return {
+      chapterGets: () =>
+        urls.filter((path) => path === '/api/chapters/c2').length,
+      stop: () => server.events.removeListener('request:start', onStart),
+    }
+  }
+
+  it('戻ったときの取り直しが失敗しても、エディタと下書きは消えない', async () => {
+    seedChapters()
+    const gets = countGets()
+    const user = userEvent.setup()
+    renderEditor('c2')
+    await user.type(await screen.findByLabelText('本文'), '！')
+
+    try {
+      server.use(
+        http.get(
+          '/api/chapters/:id',
+          () => new HttpResponse(null, { status: 500 }),
+        ),
+      )
+      returnToTab()
+      await settle()
+
+      expect(screen.getByLabelText('本文')).toHaveValue('こんにちは\n世界！')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(gets.chapterGets()).toBe(1)
+    } finally {
+      gets.stop()
+    }
+  })
+
+  it('別のタブで保存されても、戻ったときに「未保存」と出ない(取り直さない)', async () => {
+    seedChapters()
+    const gets = countGets()
+    renderEditor('c2')
+    expect(await screen.findByLabelText('本文')).toHaveValue('こんにちは\n世界')
+
+    try {
+      // 別のタブで、同じ章の本文が保存された状況
+      seedDb({
+        works: [makeWork('w1', '作品1'), makeWork('w2', '作品2')],
+        chapters: [
+          makeChapter('c1', 'w1', '別の作品の章', '別の作品の本文'),
+          makeChapter('c2', 'w2', '開く章', '別のタブで保存された本文'),
+          makeChapter('c3', 'w2', '次の章', '次の章の本文'),
+        ],
+      })
+      returnToTab()
+      await settle()
+
+      expect(screen.getByRole('status')).toHaveTextContent('保存済み')
+      expect(screen.getByLabelText('本文')).toHaveValue('こんにちは\n世界')
+      expect(gets.chapterGets()).toBe(1)
+    } finally {
+      gets.stop()
+    }
+  })
+
+  it('別のタブで章が消されても、戻ったときに下書きは消えず、保存は失敗として知らせる', async () => {
+    seedChapters()
+    const user = userEvent.setup()
+    renderEditor('c2')
+    await user.type(await screen.findByLabelText('本文'), '！')
+
+    // 別のタブで、この章が削除された状況
+    seedDb({
+      works: [makeWork('w1', '作品1'), makeWork('w2', '作品2')],
+      chapters: [
+        makeChapter('c1', 'w1', '別の作品の章', '別の作品の本文'),
+        makeChapter('c3', 'w2', '次の章', '次の章の本文'),
+      ],
+    })
+    returnToTab()
+    await settle()
+
+    expect(screen.queryByText('章が見つかりません')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('本文')).toHaveValue('こんにちは\n世界！')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '保存できませんでした',
+    )
+    expect(screen.getByLabelText('本文')).toHaveValue('こんにちは\n世界！')
   })
 })

@@ -14,11 +14,16 @@ export function useChapters(workId: string) {
   })
 }
 
-// 章が無い(404)ときは、data が null になる
+// 章が無い(404)ときは、data が null になる。
+// staleTime を無限にして、タブに戻ったときなどに取り直さない。本文を編集している間に、
+// 取り直しの失敗でエディタが消えて下書きを失ったり、別のタブで保存された本文に差し替わって
+// 「未保存」が誤って出たりしないようにする。この画面の保存は setQueryData で最新に保つ。
+// (別のタブでの変更は、最後に保存したほうが勝つ。競合は検出しない)
 export function useChapter(id: string) {
   return useQuery({
     queryKey: ['chapter', id],
     queryFn: () => fetchChapter(id),
+    staleTime: Infinity,
   })
 }
 
