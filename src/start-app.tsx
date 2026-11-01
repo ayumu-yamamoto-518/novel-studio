@@ -6,15 +6,21 @@ import { queryClient } from './lib/query-client'
 
 function StartupError() {
   return (
-    <main className="mx-auto max-w-xl space-y-3 p-6">
-      <div role="alert" aria-labelledby="startup-error-title">
+    <main className="mx-auto max-w-xl p-6">
+      <div
+        role="alert"
+        aria-labelledby="startup-error-title"
+        className="space-y-3"
+      >
         <h1 id="startup-error-title" className="text-xl font-bold">
           アプリを起動できませんでした
         </h1>
-        <p className="mt-3 text-sm">
-          このアプリは、API を Service Worker で再現しています。Service Worker
-          が使えない環境(プライベートウィンドウ、Service Worker
-          を無効にする設定など)では動きません。通常のウィンドウで開き直してください。
+        <p className="text-sm">
+          Service Worker の起動に失敗した可能性があります。このアプリは、API を
+          Service Worker
+          で再現しているため、起動できないと動きません。プライベートウィンドウや、Service
+          Worker
+          を無効にする設定のほか、通信の不調でも起きます。ページを再読み込みしても直らないときは、通常のウィンドウで開き直してください。
         </p>
       </div>
     </main>

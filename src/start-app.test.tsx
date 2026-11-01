@@ -1,5 +1,6 @@
 import { act, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { queryClient } from '@/lib/query-client'
 import { startApp } from './start-app'
 
 function createContainer() {
@@ -10,6 +11,8 @@ function createContainer() {
 
 afterEach(() => {
   document.body.innerHTML = ''
+  // 成功した場合に App が購読した、本物の queryClient のキャッシュを持ち越さない
+  queryClient.clear()
 })
 
 describe('startApp', () => {
@@ -37,6 +40,18 @@ describe('startApp', () => {
     expect(
       screen.queryByRole('heading', { name: 'novel-studio' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('起動に失敗したときは、原因を断定せず、再読み込みを案内する', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await startApp(createContainer(), () => Promise.reject(new Error('失敗')))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(
+      'Service Worker の起動に失敗した可能性があります',
+    )
+    expect(alert).toHaveTextContent('再読み込み')
   })
 
   it('起動に失敗したときは、原因を console.error に出す', async () => {
