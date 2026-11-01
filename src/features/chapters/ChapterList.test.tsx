@@ -1,7 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Work } from '@/features/works/types'
 import { readDb } from '@/mocks/db'
 import { server } from '@/mocks/server'
@@ -33,7 +33,7 @@ function makeChapter(id: string, workId: string, title: string): Chapter {
 
 describe('ChapterList', () => {
   it('読み込み中は、その旨を表示する', () => {
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     expect(screen.getByText('読み込み中…')).toBeInTheDocument()
   })
@@ -41,7 +41,7 @@ describe('ChapterList', () => {
   it('章が0件なら、空の状態を表示する', async () => {
     seedDb({ works: [makeWork('w1', '作品1')] })
 
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     expect(await screen.findByText('章がありません')).toBeInTheDocument()
     expect(screen.queryByRole('list')).not.toBeInTheDocument()
@@ -60,7 +60,7 @@ describe('ChapterList', () => {
       ],
     })
 
-    renderWithClient(<ChapterList workId="w2" />)
+    renderWithClient(<ChapterList workId="w2" onOpen={() => {}} />)
 
     const items = await screen.findAllByRole('listitem')
     expect(items.map((item) => item.textContent)).toEqual([
@@ -79,12 +79,57 @@ describe('ChapterList', () => {
       ),
     )
 
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '章を読み込めませんでした',
     )
     expect(screen.queryByText('章がありません')).not.toBeInTheDocument()
+  })
+})
+
+describe('ChapterList の章を開く', () => {
+  const work = makeWork('w1', '作品1')
+
+  it('章名を押すと、その章の id で onOpen が呼ばれる(対象は中間)', async () => {
+    seedDb({
+      works: [work],
+      chapters: [
+        makeChapter('c1', 'w1', '最初の章'),
+        makeChapter('c2', 'w1', '中間の章'),
+        makeChapter('c3', 'w1', '最後の章'),
+      ],
+    })
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    renderWithClient(<ChapterList workId="w1" onOpen={onOpen} />)
+
+    await user.click(await screen.findByRole('button', { name: '中間の章' }))
+
+    expect(onOpen).toHaveBeenCalledTimes(1)
+    expect(onOpen).toHaveBeenCalledWith('c2')
+  })
+
+  it('削除ボタンを押しても、onOpen は呼ばれない', async () => {
+    seedDb({
+      works: [work],
+      chapters: [
+        makeChapter('c1', 'w1', '章A'),
+        makeChapter('c2', 'w1', '章B'),
+      ],
+    })
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    renderWithClient(<ChapterList workId="w1" onOpen={onOpen} />)
+
+    await user.click(
+      await screen.findByRole('button', { name: '「章A」を削除' }),
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('章A')).not.toBeInTheDocument(),
+    )
+
+    expect(onOpen).not.toHaveBeenCalled()
   })
 })
 
@@ -97,7 +142,7 @@ describe('ChapterList の削除', () => {
       chapters: [makeChapter('c1', 'w1', 'A'), makeChapter('c2', 'w1', 'B')],
     })
 
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     expect(
       await screen.findByRole('button', { name: '「A」を削除' }),
@@ -117,7 +162,7 @@ describe('ChapterList の削除', () => {
       ],
     })
     const user = userEvent.setup()
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「消す章」を削除' }),
@@ -137,7 +182,7 @@ describe('ChapterList の削除', () => {
   it('最後の1件を消すと、空の状態を表示する', async () => {
     seedDb({ works: [work], chapters: [makeChapter('c1', 'w1', '最後の章')] })
     const user = userEvent.setup()
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「最後の章」を削除' }),
@@ -158,7 +203,7 @@ describe('ChapterList の削除', () => {
       ),
     )
     const user = userEvent.setup()
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     await user.click(
       await screen.findByRole('button', { name: '「消えない章」を削除' }),
@@ -179,7 +224,7 @@ describe('ChapterList の削除', () => {
       chapters: [makeChapter('c1', 'w1', '別の画面で消えた章'), stay],
     })
     const user = userEvent.setup()
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
     const button = await screen.findByRole('button', {
       name: '「別の画面で消えた章」を削除',
     })
@@ -207,7 +252,7 @@ describe('ChapterList の削除', () => {
       ],
     })
     const user = userEvent.setup({ delay: null })
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     await user.dblClick(
       await screen.findByRole('button', { name: '「二度押す章」を削除' }),
@@ -237,7 +282,7 @@ describe('ChapterList の削除', () => {
       }),
     )
     const user = userEvent.setup()
-    renderWithClient(<ChapterList workId="w1" />)
+    renderWithClient(<ChapterList workId="w1" onOpen={() => {}} />)
 
     await user.click(await screen.findByRole('button', { name: '「A」を削除' }))
 
