@@ -6,11 +6,15 @@ import type { Work } from './types'
 // server.use で足さず、素の fetch を投げることで、
 // 「server → handlers → worksHandlers」の配線そのものを確かめる。
 
-function makeWork(id: string, title: string): Work {
+function makeWork(
+  id: string,
+  title: string,
+  status: Work['status'] = 'writing',
+): Work {
   return {
     id,
     title,
-    status: 'writing',
+    status,
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
   }
@@ -42,6 +46,59 @@ describe('GET /api/works', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
   })
+})
+
+describe('GET /api/works?status=', () => {
+  const writing1 = makeWork('w1', '執筆中1', 'writing')
+  const completed1 = makeWork('w2', '完了1', 'completed')
+  const writing2 = makeWork('w3', '執筆中2', 'writing')
+  const completed2 = makeWork('w4', '完了2', 'completed')
+
+  it('writing を指定すると、執筆中の作品だけを新しい順で返す', async () => {
+    writeDb({ works: [writing1, completed1, writing2, completed2] })
+
+    const res = await fetch('/api/works?status=writing')
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([writing2, writing1])
+  })
+
+  it('completed を指定すると、完了の作品だけを新しい順で返す', async () => {
+    writeDb({ works: [writing1, completed1, writing2, completed2] })
+
+    const res = await fetch('/api/works?status=completed')
+
+    expect(await res.json()).toEqual([completed2, completed1])
+  })
+
+  it('指定した状態の作品がなければ、空の配列を返す', async () => {
+    writeDb({ works: [writing1] })
+
+    const res = await fetch('/api/works?status=completed')
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
+  })
+
+  it('status を省略すると、全件を新しい順で返す', async () => {
+    writeDb({ works: [writing1, completed1] })
+
+    const res = await fetch('/api/works')
+
+    expect(await res.json()).toEqual([completed1, writing1])
+  })
+
+  it.each(['archived', '', 'WRITING'])(
+    '不正な status(%j)は、400 とメッセージを返す',
+    async (status) => {
+      writeDb({ works: [writing1] })
+
+      const res = await fetch(`/api/works?status=${status}`)
+
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ message: expect.any(String) })
+    },
+  )
 })
 
 function postWork(body: unknown) {
@@ -175,5 +232,98 @@ describe('DELETE /api/works/:id', () => {
     const res = await fetch('/api/works/w1', { method: 'DELETE' })
 
     expect(res.status).toBe(404)
+  })
+})
+
+function patchWork(id: string, body: unknown) {
+  return fetch(`/api/works/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  })
+}
+
+describe('PATCH /api/works/:id', () => {
+  // updatedAt が進むことを確かめるため、作成日時は十分に昔にする
+  const old = '2020-01-01T00:00:00.000Z'
+  const target: Work = {
+    ...makeWork('w1', '対象の作品'),
+    createdAt: old,
+    updatedAt: old,
+  }
+
+  it('ステータスを変えて 200 で更新後の作品を返し、updatedAt だけが進む', async () => {
+    writeDb({ works: [target] })
+
+    const res = await patchWork('w1', { status: 'completed' })
+
+    expect(res.status).toBe(200)
+    const updated: Work = await res.json()
+    expect(updated).toEqual({
+      ...target,
+      status: 'completed',
+      updatedAt: expect.any(String),
+    })
+    expect(updated.createdAt).toBe(old)
+    expect(new Date(updated.updatedAt).toISOString()).toBe(updated.updatedAt)
+    expect(updated.updatedAt > old).toBe(true)
+  })
+
+  it('変更が localStorage に残り、status での絞り込みに反映される', async () => {
+    writeDb({ works: [target] })
+
+    await patchWork('w1', { status: 'completed' })
+
+    expect(readDb().works.map((work) => work.status)).toEqual(['completed'])
+    expect(await (await fetch('/api/works?status=writing')).json()).toEqual([])
+    expect(
+      (await (await fetch('/api/works?status=completed')).json()).map(
+        (work: Work) => work.id,
+      ),
+    ).toEqual(['w1'])
+  })
+
+  it('完了から執筆中に戻せる', async () => {
+    writeDb({ works: [{ ...target, status: 'completed' }] })
+
+    const res = await patchWork('w1', { status: 'writing' })
+
+    expect((await res.json()).status).toBe('writing')
+    expect(readDb().works[0].status).toBe('writing')
+  })
+
+  it('指定した作品だけを変え、他の作品は変えない', async () => {
+    const other = makeWork('w2', '他の作品')
+    writeDb({ works: [target, other] })
+
+    await patchWork('w1', { status: 'completed' })
+
+    expect(readDb().works[1]).toEqual(other)
+  })
+
+  it('存在しない id は 404 とメッセージを返し、何も変えない', async () => {
+    writeDb({ works: [target] })
+
+    const res = await patchWork('unknown', { status: 'completed' })
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ message: '作品が見つかりません' })
+    expect(readDb().works).toEqual([target])
+  })
+
+  it.each([
+    ['status が不正な値', { status: 'archived' }],
+    ['status がない', {}],
+    ['status が文字列ではない', { status: 1 }],
+    ['JSON ではない本文', 'not json'],
+    ['JSON が null', 'null'],
+  ])('%sなら、400 を返し、何も変えない', async (_, body) => {
+    writeDb({ works: [target] })
+
+    const res = await patchWork('w1', body)
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ message: expect.any(String) })
+    expect(readDb().works).toEqual([target])
   })
 })

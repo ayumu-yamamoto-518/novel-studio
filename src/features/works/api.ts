@@ -1,8 +1,22 @@
-import type { Work } from './types'
+import type { Work, WorkStatus } from './types'
 
-export async function fetchWorks(): Promise<Work[]> {
-  const res = await fetch('/api/works')
+export async function fetchWorks(status: WorkStatus): Promise<Work[]> {
+  const res = await fetch(`/api/works?status=${status}`)
   if (!res.ok) throw new Error(`作品の取得に失敗しました: ${res.status}`)
+  return res.json()
+}
+
+// 既に消えた作品(404)の変更は、成功にしない。変更した結果を利用者に見せられないため
+export async function updateWorkStatus(
+  id: string,
+  status: WorkStatus,
+): Promise<Work> {
+  const res = await fetch(`/api/works/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  if (!res.ok) throw new Error('ステータスを変更できませんでした')
   return res.json()
 }
 

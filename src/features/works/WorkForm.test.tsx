@@ -7,12 +7,13 @@ import { server } from '@/mocks/server'
 import { renderWithClient } from '@/test/render'
 import { WorkForm } from './WorkForm'
 import { WorkList } from './WorkList'
+import { WorkTabs } from './WorkTabs'
 
 function renderFormAndList() {
   return renderWithClient(
     <>
       <WorkForm />
-      <WorkList />
+      <WorkList status="writing" />
     </>,
   )
 }
@@ -29,7 +30,9 @@ describe('WorkForm', () => {
       '吾輩は猫である',
     )
     expect(screen.getByLabelText('タイトル')).toHaveValue('')
-    expect(screen.queryByText('作品がありません')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('執筆中の作品がありません'),
+    ).not.toBeInTheDocument()
   })
 
   it('空のまま作成すると、検証メッセージを表示し、何も作らない', async () => {
@@ -139,5 +142,52 @@ describe('WorkForm', () => {
       '作品を作成できませんでした',
     )
     expect(screen.getByLabelText('タイトル')).toHaveValue('失敗する作品')
+  })
+})
+
+describe('WorkForm とタブ', () => {
+  function renderFormAndTabs() {
+    return renderWithClient(
+      <>
+        <WorkForm />
+        <WorkTabs />
+      </>,
+    )
+  }
+
+  it('「完了」タブを見ている間に作成すると、「執筆中」タブに切り替わり、作った作品が見える', async () => {
+    const user = userEvent.setup()
+    renderFormAndTabs()
+    await user.click(screen.getByRole('tab', { name: '完了' }))
+    expect(
+      await screen.findByText('完了した作品がありません'),
+    ).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('タイトル'), '新しい作品')
+    await user.click(screen.getByRole('button', { name: '作成' }))
+
+    expect(await screen.findByText('新しい作品')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '執筆中' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  it('作成に失敗したときは、見ているタブを切り替えない', async () => {
+    server.use(
+      http.post('/api/works', () => new HttpResponse(null, { status: 500 })),
+    )
+    const user = userEvent.setup()
+    renderFormAndTabs()
+    await user.click(screen.getByRole('tab', { name: '完了' }))
+
+    await user.type(screen.getByLabelText('タイトル'), '失敗する作品')
+    await user.click(screen.getByRole('button', { name: '作成' }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '完了' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   })
 })

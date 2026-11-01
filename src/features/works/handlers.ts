@@ -1,7 +1,11 @@
 import { http, HttpResponse } from 'msw'
 import { readDb, writeDb } from '@/mocks/db'
 import { validateTitle } from './title'
-import type { Work } from './types'
+import type { Work, WorkStatus } from './types'
+
+function isWorkStatus(value: unknown): value is WorkStatus {
+  return value === 'writing' || value === 'completed'
+}
 
 async function readJson(request: Request): Promise<unknown> {
   try {
@@ -13,8 +17,20 @@ async function readJson(request: Request): Promise<unknown> {
 
 export const worksHandlers = [
   // 新しい順(作成順の逆)。createdAt の同時刻で並びがぶれないよう、挿入順を使う
-  http.get('/api/works', () => {
-    return HttpResponse.json([...readDb().works].reverse())
+  http.get('/api/works', ({ request }) => {
+    // 省略(null)は全件。空文字や未知の値は、黙って全件にせず 400 にする
+    const status = new URL(request.url).searchParams.get('status')
+    if (status !== null && !isWorkStatus(status)) {
+      return HttpResponse.json(
+        { message: 'status の値が正しくありません' },
+        { status: 400 },
+      )
+    }
+
+    const works = [...readDb().works].reverse()
+    return HttpResponse.json(
+      status === null ? works : works.filter((work) => work.status === status),
+    )
   }),
 
   http.post('/api/works', async ({ request }) => {
@@ -49,6 +65,43 @@ export const worksHandlers = [
     writeDb({ ...db, works: [...db.works, work] })
 
     return HttpResponse.json(work, { status: 201 })
+  }),
+
+  // 受け付けるのは status の変更だけ(タイトルの変更は、必要になった時点で足す)
+  http.patch('/api/works/:id', async ({ params, request }) => {
+    const body = await readJson(request)
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      !('status' in body) ||
+      !isWorkStatus(body.status)
+    ) {
+      return HttpResponse.json(
+        { message: 'リクエストの形式が正しくありません' },
+        { status: 400 },
+      )
+    }
+
+    // 読み込みから書き込みの間に await を挟まない
+    const db = readDb()
+    const current = db.works.find((work) => work.id === params.id)
+    if (!current) {
+      return HttpResponse.json(
+        { message: '作品が見つかりません' },
+        { status: 404 },
+      )
+    }
+
+    const updated: Work = {
+      ...current,
+      status: body.status,
+      updatedAt: new Date().toISOString(),
+    }
+    writeDb({
+      ...db,
+      works: db.works.map((work) => (work.id === updated.id ? updated : work)),
+    })
+    return HttpResponse.json(updated)
   }),
 
   http.delete('/api/works/:id', ({ params }) => {
