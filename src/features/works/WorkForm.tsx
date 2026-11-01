@@ -1,13 +1,16 @@
+import { useSetAtom } from 'jotai'
 import { useRef, useState, type SubmitEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCreateWork } from './queries'
+import { statusTabAtom } from './state'
 
 export function WorkForm() {
   // 入力途中の文字列は、このフォームの中だけで使うのでローカル状態にする
   const [title, setTitle] = useState('')
   const { mutate, isPending, error } = useCreateWork()
+  const setStatusTab = useSetAtom(statusTabAtom)
   // isPending の反映は1拍遅れ、直後の2回目のクリックには間に合わない。
   // 同期的に効く ref で、送信中の再送信を防ぐ
   const submitting = useRef(false)
@@ -17,7 +20,11 @@ export function WorkForm() {
     if (submitting.current) return
     submitting.current = true
     mutate(title, {
-      onSuccess: () => setTitle(''),
+      onSuccess: () => {
+        setTitle('')
+        // 作品は執筆中で作られるので、別のタブを見ていても作った作品が見えるようにする
+        setStatusTab('writing')
+      },
       onSettled: () => {
         submitting.current = false
       },
