@@ -274,6 +274,130 @@ describe('GET /api/chapters/:id', () => {
   })
 })
 
+function patchChapter(id: string, body: unknown) {
+  return fetch(`/api/chapters/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  })
+}
+
+describe('PATCH /api/chapters/:id', () => {
+  // updatedAt が進むことを確かめるため、作成日時は十分に昔にする
+  const old = '2020-01-01T00:00:00.000Z'
+  const target: Chapter = {
+    ...makeChapter('c2', 'w1', '対象の章'),
+    body: '元の本文',
+    createdAt: old,
+    updatedAt: old,
+  }
+  const works = [makeWork('w1', '作品1'), makeWork('w2', '作品2')]
+
+  it('本文を変えて 200 で更新後の章を返し、updatedAt だけが進む', async () => {
+    seedDb({ works, chapters: [makeChapter('c1', 'w1', '前の章'), target] })
+
+    const res = await patchChapter('c2', { body: '新しい本文\n二行目' })
+
+    expect(res.status).toBe(200)
+    const updated: Chapter = await res.json()
+    expect(updated).toEqual({
+      ...target,
+      body: '新しい本文\n二行目',
+      updatedAt: expect.any(String),
+    })
+    expect(updated.createdAt).toBe(old)
+    expect(new Date(updated.updatedAt).toISOString()).toBe(updated.updatedAt)
+    expect(updated.updatedAt > old).toBe(true)
+  })
+
+  it('変更が localStorage に残り、取得(GET)に反映される', async () => {
+    seedDb({ works, chapters: [makeChapter('c1', 'w1', '前の章'), target] })
+
+    await patchChapter('c2', { body: '保存される本文' })
+
+    expect(readDb().chapters[1].body).toBe('保存される本文')
+    const got: Chapter = await (await fetch('/api/chapters/c2')).json()
+    expect(got.body).toBe('保存される本文')
+  })
+
+  it('本文を空文字にできる', async () => {
+    seedDb({ works, chapters: [target] })
+
+    const res = await patchChapter('c2', { body: '' })
+
+    expect(res.status).toBe(200)
+    expect(readDb().chapters[0].body).toBe('')
+  })
+
+  it('長い本文(10 万文字)も保存できる', async () => {
+    seedDb({ works, chapters: [target] })
+    const body = 'あいう え\n'.repeat(20_000)
+
+    const res = await patchChapter('c2', { body })
+
+    expect(res.status).toBe(200)
+    expect(readDb().chapters[0].body).toBe(body)
+  })
+
+  it('指定した章だけを変え、他の章・同じ作品の別の章・作品は変えない(対象は中間)', async () => {
+    const before = makeChapter('c1', 'w1', '前の章')
+    const after = makeChapter('c3', 'w1', '後の章')
+    const otherWorks = makeChapter('c4', 'w2', '別の作品の章')
+    seedDb({ works, chapters: [before, target, after, otherWorks] })
+
+    await patchChapter('c2', { body: '変える' })
+
+    const { chapters, works: savedWorks } = readDb()
+    expect(chapters[0]).toEqual(before)
+    expect(chapters[2]).toEqual(after)
+    expect(chapters[3]).toEqual(otherWorks)
+    expect(savedWorks).toEqual(works)
+  })
+
+  it('title を一緒に送っても、章名は変わらない(本文だけが対象)', async () => {
+    seedDb({ works, chapters: [target] })
+
+    await patchChapter('c2', { body: '本文だけ', title: '変えようとした名前' })
+
+    expect(readDb().chapters[0].title).toBe('対象の章')
+  })
+
+  it('存在しない id は、404 とメッセージを返し、何も変えない', async () => {
+    seedDb({ works, chapters: [target] })
+
+    const res = await patchChapter('unknown', { body: '本文' })
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ message: '章が見つかりません' })
+    expect(readDb().chapters).toEqual([target])
+  })
+
+  it.each([
+    ['body がない', {}],
+    ['body が文字列ではない', { body: 1 }],
+    ['body が null', { body: null }],
+    ['JSON ではない本文', 'not json'],
+    ['JSON が null', 'null'],
+  ])('%sなら、400 を返し、何も変えない', async (_, requestBody) => {
+    seedDb({ works, chapters: [target] })
+
+    const res = await patchChapter('c2', requestBody)
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ message: expect.any(String) })
+    expect(readDb().chapters).toEqual([target])
+  })
+
+  // 本文の形の不正は、章の存在より先に返す(作品の PATCH と同じ順序)
+  it('存在しない id でも、本文が不正なら、404 より先に 400 を返す', async () => {
+    seedDb({ works, chapters: [target] })
+
+    const res = await patchChapter('unknown', { body: 1 })
+
+    expect(res.status).toBe(400)
+  })
+})
+
 describe('DELETE /api/chapters/:id', () => {
   it('204 を返し、章が一覧と localStorage から消える', async () => {
     const target = makeChapter('c1', 'w1', '消す章')
