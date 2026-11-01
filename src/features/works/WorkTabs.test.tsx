@@ -1,12 +1,20 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useAtomValue } from 'jotai'
 import { describe, expect, it } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { seedDb } from '@/test/db'
 import { server } from '@/mocks/server'
 import { renderWithClient } from '@/test/render'
+import { selectedWorkIdAtom } from './state'
 import type { Work } from './types'
 import { WorkTabs } from './WorkTabs'
+
+// 選択中の作品(selectedWorkIdAtom)を、画面に出して確かめるためのテスト用の部品
+function SelectedWorkProbe() {
+  const id = useAtomValue(selectedWorkIdAtom)
+  return <p>選択中: {id ?? 'なし'}</p>
+}
 
 function makeWork(id: string, title: string, status: Work['status']): Work {
   return {
@@ -153,6 +161,29 @@ describe('WorkTabs', () => {
 
   // 他のテストの順序に頼らず、この1つで完結させる。
   // render の Provider を外すと、選択が次の render に残るので失敗する
+  it('作品名を押すと、その作品が選択される(対象は中間。「完了」タブの作品でも同じ)', async () => {
+    seedDb({
+      works: [
+        makeWork('w1', '最初の作品', 'completed'),
+        makeWork('w2', '中間の作品', 'completed'),
+        makeWork('w3', '最後の作品', 'completed'),
+      ],
+    })
+    const user = userEvent.setup()
+    renderWithClient(
+      <>
+        <WorkTabs />
+        <SelectedWorkProbe />
+      </>,
+    )
+    expect(screen.getByText('選択中: なし')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: '完了' }))
+    await user.click(await screen.findByRole('button', { name: '中間の作品' }))
+
+    expect(screen.getByText('選択中: w2')).toBeInTheDocument()
+  })
+
   it('選択したタブは、描画し直すと引き継がれない(render ごとに新しい store)', async () => {
     const user = userEvent.setup()
     const first = renderWithClient(<WorkTabs />)

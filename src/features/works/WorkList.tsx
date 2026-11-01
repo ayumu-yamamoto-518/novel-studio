@@ -7,7 +7,13 @@ const EMPTY_MESSAGES: Record<WorkStatus, string> = {
   completed: '完了した作品がありません',
 }
 
-export function WorkList({ status }: { status: WorkStatus }) {
+export function WorkList({
+  status,
+  onOpen,
+}: {
+  status: WorkStatus
+  onOpen: (workId: string) => void
+}) {
   const { data, isPending, isError } = useWorks(status)
   const {
     mutate: remove,
@@ -41,7 +47,14 @@ export function WorkList({ status }: { status: WorkStatus }) {
       <ul className="space-y-2">
         {data.map((work) => (
           <li key={work.id} className="flex items-center justify-between gap-2">
-            <span>{work.title}</span>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto min-w-0 justify-start px-0 text-left whitespace-normal break-all"
+              onClick={() => onOpen(work.id)}
+            >
+              {work.title}
+            </Button>
             <div className="flex gap-1">
               <Button
                 variant="ghost"

@@ -13,7 +13,7 @@ function renderFormAndList() {
   return renderWithClient(
     <>
       <WorkForm />
-      <WorkList status="writing" />
+      <WorkList status="writing" onOpen={() => {}} />
     </>,
   )
 }
