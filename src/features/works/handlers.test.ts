@@ -134,3 +134,46 @@ describe('POST /api/works', () => {
     ).toEqual(['A', 'B'])
   })
 })
+
+describe('DELETE /api/works/:id', () => {
+  it('204 を返し、作品が一覧と localStorage から消える', async () => {
+    const target = makeWork('w1', '消す作品')
+    writeDb({ works: [target] })
+
+    const res = await fetch('/api/works/w1', { method: 'DELETE' })
+
+    expect(res.status).toBe(204)
+    expect(readDb().works).toEqual([])
+    expect(await (await fetch('/api/works')).json()).toEqual([])
+  })
+
+  it('指定した作品だけを消し、他の作品は残す', async () => {
+    const keep1 = makeWork('w1', '残る作品1')
+    const target = makeWork('w2', '消す作品')
+    const keep2 = makeWork('w3', '残る作品2')
+    writeDb({ works: [keep1, target, keep2] })
+
+    await fetch('/api/works/w2', { method: 'DELETE' })
+
+    expect(readDb().works).toEqual([keep1, keep2])
+  })
+
+  it('存在しない id は 404 とメッセージを返し、何も変えない', async () => {
+    const existing = makeWork('w1', '残る作品')
+    writeDb({ works: [existing] })
+
+    const res = await fetch('/api/works/unknown', { method: 'DELETE' })
+
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ message: '作品が見つかりません' })
+    expect(readDb().works).toEqual([existing])
+  })
+
+  it('保存先が壊れた JSON でも、404 を返す', async () => {
+    localStorage.setItem('novel-studio:db', '{broken')
+
+    const res = await fetch('/api/works/w1', { method: 'DELETE' })
+
+    expect(res.status).toBe(404)
+  })
+})

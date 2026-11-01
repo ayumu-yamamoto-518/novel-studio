@@ -6,6 +6,17 @@ export async function fetchWorks(): Promise<Work[]> {
   return res.json()
 }
 
+// 404(既に無い)は成功として扱う。目的の「その作品が無い状態」は達成済みで、
+// 二重クリックや別のタブでの削除でも、利用者にエラーを見せないため。
+export async function deleteWork(id: string): Promise<void> {
+  const res = await fetch(`/api/works/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok && res.status !== 404) {
+    throw new Error('作品を削除できませんでした')
+  }
+}
+
 // 400 のときは、サーバーが返した検証メッセージをそのまま画面に出せるよう Error にする
 export async function createWork(title: string): Promise<Work> {
   const res = await fetch('/api/works', {

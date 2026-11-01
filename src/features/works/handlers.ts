@@ -50,4 +50,17 @@ export const worksHandlers = [
 
     return HttpResponse.json(work, { status: 201 })
   }),
+
+  http.delete('/api/works/:id', ({ params }) => {
+    const db = readDb()
+    if (!db.works.some((work) => work.id === params.id)) {
+      return HttpResponse.json(
+        { message: '作品が見つかりません' },
+        { status: 404 },
+      )
+    }
+
+    writeDb({ ...db, works: db.works.filter((work) => work.id !== params.id) })
+    return new HttpResponse(null, { status: 204 })
+  }),
 ]
