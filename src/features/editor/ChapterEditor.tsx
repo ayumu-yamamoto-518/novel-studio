@@ -5,6 +5,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { useChapter, useUpdateChapterBody } from '@/features/chapters/queries'
 import { countCharacters } from './count-characters'
 
+const DISCARD_MESSAGE = '未保存の変更があります。破棄して戻りますか?'
+
 export function ChapterEditor({
   chapterId,
   onBack,
@@ -68,9 +70,15 @@ function EditorForm({
   // 未保存かどうかは、下書きと、サーバーに保存されている本文の違いで決める
   const isDirty = draft !== savedBody
 
+  // 未保存の本文は、戻ると失われる。自動保存は作らないので、確認してから戻る
+  function handleBack() {
+    if (isDirty && !window.confirm(DISCARD_MESSAGE)) return
+    onBack()
+  }
+
   return (
     <div className="space-y-4">
-      <Button variant="ghost" size="sm" onClick={onBack}>
+      <Button variant="ghost" size="sm" onClick={handleBack}>
         章の一覧に戻る
       </Button>
       <h2 className="text-xl font-bold break-all">{title}</h2>

@@ -386,3 +386,114 @@ describe('ChapterEditor の保存', () => {
     expect(readDb().chapters[1].body).toBe('こんにちは\n世界')
   })
 })
+
+describe('ChapterEditor の戻る', () => {
+  const message = '未保存の変更があります。破棄して戻りますか?'
+
+  it('未保存でなければ、確認せずに戻る', async () => {
+    seedChapters()
+    const confirm = vi.spyOn(window, 'confirm')
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    renderEditor('c2', onBack)
+
+    try {
+      await user.click(
+        await screen.findByRole('button', { name: '章の一覧に戻る' }),
+      )
+
+      expect(confirm).not.toHaveBeenCalled()
+      expect(onBack).toHaveBeenCalledTimes(1)
+    } finally {
+      confirm.mockRestore()
+    }
+  })
+
+  it('未保存で、確認をキャンセルしたら、戻らず、下書きが残る', async () => {
+    seedChapters()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    renderEditor('c2', onBack)
+    await user.type(await screen.findByLabelText('本文'), '！')
+
+    try {
+      await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+
+      expect(confirm).toHaveBeenCalledTimes(1)
+      expect(confirm).toHaveBeenCalledWith(message)
+      expect(onBack).not.toHaveBeenCalled()
+      expect(screen.getByLabelText('本文')).toHaveValue('こんにちは\n世界！')
+    } finally {
+      confirm.mockRestore()
+    }
+  })
+
+  it('未保存で、確認を OK にしたら、戻る', async () => {
+    seedChapters()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    renderEditor('c2', onBack)
+    await user.type(await screen.findByLabelText('本文'), '！')
+
+    try {
+      await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+
+      expect(confirm).toHaveBeenCalledWith(message)
+      expect(onBack).toHaveBeenCalledTimes(1)
+    } finally {
+      confirm.mockRestore()
+    }
+    // 破棄して戻るだけで、保存はされない
+    expect(readDb().chapters[1].body).toBe('こんにちは\n世界')
+  })
+
+  it('保存したあとは、確認せずに戻る', async () => {
+    seedChapters()
+    const confirm = vi.spyOn(window, 'confirm')
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    renderEditor('c2', onBack)
+    await user.type(await screen.findByLabelText('本文'), '！')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('保存済み'),
+    )
+
+    try {
+      await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+
+      expect(confirm).not.toHaveBeenCalled()
+      expect(onBack).toHaveBeenCalledTimes(1)
+    } finally {
+      confirm.mockRestore()
+    }
+  })
+
+  it('保存に失敗して未保存のままなら、確認してから戻る', async () => {
+    seedChapters()
+    server.use(
+      http.patch(
+        '/api/chapters/:id',
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    )
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const onBack = vi.fn()
+    const user = userEvent.setup()
+    renderEditor('c2', onBack)
+    await user.type(await screen.findByLabelText('本文'), '！')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+
+    try {
+      await user.click(screen.getByRole('button', { name: '章の一覧に戻る' }))
+
+      expect(confirm).toHaveBeenCalledTimes(1)
+      expect(onBack).not.toHaveBeenCalled()
+    } finally {
+      confirm.mockRestore()
+    }
+  })
+})
